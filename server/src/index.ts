@@ -23,6 +23,11 @@ const app = express()
 const PORT = process.env.PORT || 3001
 const isProduction = process.env.RAILWAY_ENVIRONMENT === 'production' || process.env.NODE_ENV === 'production'
 
+// Trust proxy for Railway (needed for rate limiting behind reverse proxy)
+if (isProduction) {
+  app.set('trust proxy', 1)
+}
+
 // Middleware
 app.use(express.json())
 app.use(cookieParser())
