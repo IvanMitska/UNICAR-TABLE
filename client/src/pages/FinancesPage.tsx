@@ -84,9 +84,9 @@ export default function FinancesPage() {
   }
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('ru-RU', {
+    return new Intl.NumberFormat('th-TH', {
       style: 'currency',
-      currency: 'RUB',
+      currency: 'THB',
       maximumFractionDigits: 0,
     }).format(amount)
   }

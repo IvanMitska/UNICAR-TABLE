@@ -3,10 +3,25 @@ import { Link } from 'react-router-dom'
 import type { DashboardStats, Rental, Notification } from '@/types'
 import clsx from 'clsx'
 
+interface VehiclePopularity {
+  id: number
+  brand: string
+  model: string
+  licensePlate: string
+  rentalCount: number
+  totalRevenue: number
+}
+
+interface PopularityData {
+  mostRented: VehiclePopularity[]
+  leastRented: VehiclePopularity[]
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [activeRentals, setActiveRentals] = useState<Rental[]>([])
   const [notifications, setNotifications] = useState<Notification[]>([])
+  const [popularity, setPopularity] = useState<PopularityData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -15,10 +30,11 @@ export default function DashboardPage() {
 
   const fetchDashboardData = async () => {
     try {
-      const [statsRes, rentalsRes, notificationsRes] = await Promise.all([
+      const [statsRes, rentalsRes, notificationsRes, popularityRes] = await Promise.all([
         fetch('/api/reports/summary'),
         fetch('/api/rentals/active'),
         fetch('/api/notifications?limit=5'),
+        fetch('/api/reports/vehicle-popularity'),
       ])
 
       if (statsRes.ok) {
@@ -34,6 +50,11 @@ export default function DashboardPage() {
       if (notificationsRes.ok) {
         const data = await notificationsRes.json()
         setNotifications(data)
+      }
+
+      if (popularityRes.ok) {
+        const data = await popularityRes.json()
+        setPopularity(data)
       }
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)
@@ -226,6 +247,99 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Vehicle popularity */}
+      {popularity && (
+        <div className="order-5 grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Most rented */}
+          <div className="rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm p-5 animate-slide-up" style={{ animationDelay: '300ms' }}>
+            <div className="flex items-center gap-2 mb-4">
+              <TrendUpIcon className="w-5 h-5 text-green-500" />
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Популярные авто</h2>
+            </div>
+            {popularity.mostRented.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <CarIcon className="w-10 h-10 text-gray-300 dark:text-gray-600 mb-3" />
+                <p className="text-sm text-gray-400 dark:text-gray-500">Нет данных</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {popularity.mostRented.map((vehicle, index) => (
+                  <div
+                    key={vehicle.id}
+                    className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-zinc-800/60 border border-gray-100 dark:border-zinc-700/50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={clsx(
+                        "w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold",
+                        index === 0 ? "bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400" :
+                        index === 1 ? "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400" :
+                        index === 2 ? "bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400" :
+                        "bg-gray-50 text-gray-400 dark:bg-zinc-800 dark:text-gray-500"
+                      )}>
+                        {index + 1}
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {vehicle.brand} {vehicle.model}
+                        </p>
+                        <p className="text-xs text-gray-400">{vehicle.licensePlate}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-green-600 dark:text-green-400">
+                        {vehicle.rentalCount} аренд
+                      </p>
+                      <p className="text-xs text-gray-400">{formatCurrency(vehicle.totalRevenue)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Least rented */}
+          <div className="rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm p-5 animate-slide-up" style={{ animationDelay: '350ms' }}>
+            <div className="flex items-center gap-2 mb-4">
+              <TrendDownIcon className="w-5 h-5 text-red-500" />
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Низкий спрос</h2>
+            </div>
+            {popularity.leastRented.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <CarIcon className="w-10 h-10 text-gray-300 dark:text-gray-600 mb-3" />
+                <p className="text-sm text-gray-400 dark:text-gray-500">Нет данных</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {popularity.leastRented.map((vehicle) => (
+                  <div
+                    key={vehicle.id}
+                    className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-zinc-800/60 border border-gray-100 dark:border-zinc-700/50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-900/20 flex items-center justify-center">
+                        <CarIcon className="w-4 h-4 text-red-400" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {vehicle.brand} {vehicle.model}
+                        </p>
+                        <p className="text-xs text-gray-400">{vehicle.licensePlate}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-red-500">
+                        {vehicle.rentalCount} аренд
+                      </p>
+                      <p className="text-xs text-gray-400">{formatCurrency(vehicle.totalRevenue)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -344,6 +458,22 @@ function TrendIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M2 12h4l3-9 6 18 3-9h4" />
+    </svg>
+  )
+}
+
+function TrendUpIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+    </svg>
+  )
+}
+
+function TrendDownIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13 17h8m0 0v-8m0 8l-8-8-4 4-6-6" />
     </svg>
   )
 }

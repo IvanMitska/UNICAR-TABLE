@@ -248,4 +248,48 @@ router.get('/utilization', async (req: Request, res: Response) => {
   }
 })
 
+// Get vehicle popularity (most/least rented)
+router.get('/vehicle-popularity', async (_req: Request, res: Response) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        v.id,
+        v.brand,
+        v.model,
+        v.license_plate,
+        v.status,
+        COUNT(r.id) as rental_count,
+        COALESCE(SUM(r.total_amount), 0) as total_revenue
+      FROM vehicles v
+      LEFT JOIN rentals r ON v.id = r.vehicle_id
+      WHERE v.status != 'archived'
+      GROUP BY v.id, v.brand, v.model, v.license_plate, v.status
+      ORDER BY rental_count DESC
+    `)
+
+    const vehicles = result.rows.map((v: Record<string, unknown>) => ({
+      id: v.id,
+      brand: v.brand,
+      model: v.model,
+      licensePlate: v.license_plate,
+      status: v.status,
+      rentalCount: parseInt(v.rental_count as string) || 0,
+      totalRevenue: parseFloat(v.total_revenue as string) || 0,
+    }))
+
+    // Split into most and least rented
+    const mostRented = vehicles.slice(0, 5)
+    const leastRented = [...vehicles].sort((a, b) => a.rentalCount - b.rentalCount).slice(0, 5)
+
+    res.json({
+      mostRented,
+      leastRented,
+      all: vehicles,
+    })
+  } catch (error) {
+    console.error('Get vehicle popularity error:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
 export default router
