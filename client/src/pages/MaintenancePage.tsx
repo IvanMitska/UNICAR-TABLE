@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import type { Maintenance, Vehicle, MaintenanceFormData, MaintenanceType } from '@/types'
 import clsx from 'clsx'
+import SelectDropdown from '@/components/ui/SelectDropdown'
+import DatePicker from '@/components/ui/DatePicker'
 
 // Custom Select Component
 interface SelectOption {
@@ -310,19 +312,19 @@ export default function MaintenancePage() {
       </div>
 
       {/* Filter */}
-      <div className="animate-slide-up" style={{ animationDelay: '150ms' }}>
-        <select
-          value={vehicleFilter === 'all' ? 'all' : vehicleFilter}
-          onChange={(e) => setVehicleFilter(e.target.value === 'all' ? 'all' : parseInt(e.target.value))}
-          className="select-enhanced w-full sm:w-72"
-        >
-          <option value="all">Все автомобили</option>
-          {vehicles.map((vehicle) => (
-            <option key={vehicle.id} value={vehicle.id}>
-              {vehicle.brand} {vehicle.model} ({vehicle.licensePlate})
-            </option>
-          ))}
-        </select>
+      <div className="animate-slide-up w-full sm:w-72" style={{ animationDelay: '150ms' }}>
+        <SelectDropdown
+          value={vehicleFilter === 'all' ? 'all' : vehicleFilter.toString()}
+          onChange={(value) => setVehicleFilter(value === 'all' ? 'all' : parseInt(value))}
+          options={[
+            { value: 'all', label: 'Все автомобили' },
+            ...vehicles.map((vehicle) => ({
+              value: vehicle.id.toString(),
+              label: `${vehicle.brand} ${vehicle.model} (${vehicle.licensePlate})`
+            }))
+          ]}
+          placeholder="Выберите автомобиль"
+        />
       </div>
 
       {/* Records list */}
@@ -512,28 +514,18 @@ function MaintenanceModal({
                 Тип и дата
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="form-label required">Тип работ</label>
-                  <select
-                    value={formData.type}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value as MaintenanceType })}
-                    className="select-enhanced"
-                  >
-                    {Object.entries(typeLabels).map(([value, label]) => (
-                      <option key={value} value={value}>{label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="form-label required">Дата</label>
-                  <input
-                    type="date"
-                    required
-                    value={formData.date}
-                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                    className="input-enhanced"
-                  />
-                </div>
+                <SelectDropdown
+                  label="Тип работ"
+                  required
+                  value={formData.type}
+                  onChange={(value) => setFormData({ ...formData, type: value as MaintenanceType })}
+                  options={Object.entries(typeLabels).map(([value, label]) => ({ value, label }))}
+                />
+                <DatePicker
+                  label="Дата"
+                  value={formData.date}
+                  onChange={(value) => setFormData({ ...formData, date: value })}
+                />
               </div>
             </div>
 

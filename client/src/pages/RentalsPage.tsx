@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { Rental, Vehicle, Client, RentalStatus, RentalFormData, RateType, PaymentMethod } from '@/types'
 import clsx from 'clsx'
+import SelectDropdown from '@/components/ui/SelectDropdown'
+import DatePicker from '@/components/ui/DatePicker'
 
 // Custom Select Component
 interface SelectOption {
@@ -775,26 +777,16 @@ function RentalModal({
                             placeholder="99 99 123456"
                           />
                         </div>
-                        <div>
-                          <label className="form-label required text-[10px] sm:text-xs">ВУ до</label>
-                          <input
-                            type="date"
-                            required
-                            value={newClientData.licenseExpiry}
-                            onChange={(e) => setNewClientData({ ...newClientData, licenseExpiry: e.target.value })}
-                            className="input-enhanced py-2 sm:py-2.5 text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="form-label required text-[10px] sm:text-xs">Дата рождения</label>
-                          <input
-                            type="date"
-                            required
-                            value={newClientData.birthDate}
-                            onChange={(e) => setNewClientData({ ...newClientData, birthDate: e.target.value })}
-                            className="input-enhanced py-2 sm:py-2.5 text-sm"
-                          />
-                        </div>
+                        <DatePicker
+                          label="ВУ до"
+                          value={newClientData.licenseExpiry}
+                          onChange={(value) => setNewClientData({ ...newClientData, licenseExpiry: value })}
+                        />
+                        <DatePicker
+                          label="Дата рождения"
+                          value={newClientData.birthDate}
+                          onChange={(value) => setNewClientData({ ...newClientData, birthDate: value })}
+                        />
                         <div className="sm:col-span-2">
                           <label className="form-label required text-[10px] sm:text-xs">Адрес</label>
                           <input
@@ -882,26 +874,16 @@ function RentalModal({
                 Сроки аренды
               </div>
               <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                <div>
-                  <label className="form-label required text-xs sm:text-sm">Дата начала</label>
-                  <input
-                    type="date"
-                    required
-                    value={formData.startDate}
-                    onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                    className="input-enhanced text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="form-label required text-xs sm:text-sm">Дата окончания</label>
-                  <input
-                    type="date"
-                    required
-                    value={formData.plannedEndDate}
-                    onChange={(e) => setFormData({ ...formData, plannedEndDate: e.target.value })}
-                    className="input-enhanced text-sm"
-                  />
-                </div>
+                <DatePicker
+                  label="Дата начала"
+                  value={formData.startDate}
+                  onChange={(value) => setFormData({ ...formData, startDate: value })}
+                />
+                <DatePicker
+                  label="Дата окончания"
+                  value={formData.plannedEndDate}
+                  onChange={(value) => setFormData({ ...formData, plannedEndDate: value })}
+                />
               </div>
             </div>
 
@@ -914,20 +896,12 @@ function RentalModal({
                 Оплата
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4">
-                <div>
-                  <label className="form-label text-[10px] sm:text-xs">Тариф</label>
-                  <select
-                    value={formData.rateType}
-                    onChange={(e) => setFormData({ ...formData, rateType: e.target.value as RateType })}
-                    className="select-enhanced py-2 sm:py-3 text-sm"
-                  >
-                    {Object.entries(rateLabels).map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <SelectDropdown
+                  label="Тариф"
+                  value={formData.rateType}
+                  onChange={(value) => setFormData({ ...formData, rateType: value as RateType })}
+                  options={Object.entries(rateLabels).map(([value, label]) => ({ value, label }))}
+                />
                 <div>
                   <label className="form-label required text-[10px] sm:text-xs">Сумма</label>
                   <div className="relative">
@@ -955,20 +929,12 @@ function RentalModal({
                     />
                   </div>
                 </div>
-                <div>
-                  <label className="form-label text-[10px] sm:text-xs">Оплата</label>
-                  <select
-                    value={formData.paymentMethod}
-                    onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value as PaymentMethod })}
-                    className="select-enhanced py-2 sm:py-3 text-sm"
-                  >
-                    {Object.entries(paymentLabels).map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <SelectDropdown
+                  label="Оплата"
+                  value={formData.paymentMethod}
+                  onChange={(value) => setFormData({ ...formData, paymentMethod: value as PaymentMethod })}
+                  options={Object.entries(paymentLabels).map(([value, label]) => ({ value, label }))}
+                />
               </div>
             </div>
 

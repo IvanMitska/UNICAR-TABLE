@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { Vehicle, VehicleStatus, VehicleFormData } from '@/types'
 import clsx from 'clsx'
+import SelectDropdown from '@/components/ui/SelectDropdown'
+import DatePicker from '@/components/ui/DatePicker'
 
 const statusLabels: Record<VehicleStatus, string> = {
   available: 'Свободен',
@@ -501,16 +503,12 @@ function VehicleModal({
                   </div>
                 </div>
                 <div className="sm:col-span-1">
-                  <label className="form-label">Топливо</label>
-                  <select
+                  <SelectDropdown
+                    label="Топливо"
                     value={formData.fuelType}
-                    onChange={(e) => setFormData({ ...formData, fuelType: e.target.value as VehicleFormData['fuelType'] })}
-                    className="select-enhanced"
-                  >
-                    {Object.entries(fuelLabels).map(([value, label]) => (
-                      <option key={value} value={value}>{label}</option>
-                    ))}
-                  </select>
+                    onChange={(value) => setFormData({ ...formData, fuelType: value as VehicleFormData['fuelType'] })}
+                    options={Object.entries(fuelLabels).map(([value, label]) => ({ value, label }))}
+                  />
                 </div>
               </div>
             </div>
@@ -524,18 +522,12 @@ function VehicleModal({
                 Состояние
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="form-label">Статус</label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as VehicleStatus })}
-                    className="select-enhanced"
-                  >
-                    {Object.entries(statusLabels).map(([value, label]) => (
-                      <option key={value} value={value}>{label}</option>
-                    ))}
-                  </select>
-                </div>
+                <SelectDropdown
+                  label="Статус"
+                  value={formData.status}
+                  onChange={(value) => setFormData({ ...formData, status: value as VehicleStatus })}
+                  options={Object.entries(statusLabels).map(([value, label]) => ({ value, label }))}
+                />
                 <div>
                   <label className="form-label">Пробег</label>
                   <div className="relative">
@@ -629,24 +621,16 @@ function VehicleModal({
                 Документы и даты
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="form-label">Страховка до</label>
-                  <input
-                    type="date"
-                    value={formData.insuranceExpiry}
-                    onChange={(e) => setFormData({ ...formData, insuranceExpiry: e.target.value })}
-                    className="input-enhanced"
-                  />
-                </div>
-                <div>
-                  <label className="form-label">Техосмотр до</label>
-                  <input
-                    type="date"
-                    value={formData.inspectionExpiry}
-                    onChange={(e) => setFormData({ ...formData, inspectionExpiry: e.target.value })}
-                    className="input-enhanced"
-                  />
-                </div>
+                <DatePicker
+                  label="Страховка до"
+                  value={formData.insuranceExpiry || ''}
+                  onChange={(value) => setFormData({ ...formData, insuranceExpiry: value })}
+                />
+                <DatePicker
+                  label="Техосмотр до"
+                  value={formData.inspectionExpiry || ''}
+                  onChange={(value) => setFormData({ ...formData, inspectionExpiry: value })}
+                />
               </div>
             </div>
 

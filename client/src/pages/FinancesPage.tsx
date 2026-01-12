@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import type { Expense, Vehicle, ExpenseFormData, ExpenseCategory } from '@/types'
 import clsx from 'clsx'
+import DatePicker from '@/components/ui/DatePicker'
+import SelectDropdown from '@/components/ui/SelectDropdown'
 
 const categoryLabels: Record<ExpenseCategory, string> = {
   maintenance: 'Обслуживание',
@@ -110,25 +112,20 @@ export default function FinancesPage() {
       </div>
 
       {/* Date range filter */}
-      <div className="flex flex-wrap gap-4">
-        <div>
-          <label className="block text-sm text-gray-500 dark:text-gray-400 mb-1">От</label>
-          <input
-            type="date"
-            value={dateRange.from}
-            onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
-            className="input"
-          />
-        </div>
-        <div>
-          <label className="block text-sm text-gray-500 dark:text-gray-400 mb-1">До</label>
-          <input
-            type="date"
-            value={dateRange.to}
-            onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
-            className="input"
-          />
-        </div>
+      <div className="flex flex-wrap items-end gap-4">
+        <DatePicker
+          label="От"
+          value={dateRange.from}
+          onChange={(value) => setDateRange({ ...dateRange, from: value })}
+          className="w-48"
+        />
+        <span className="text-gray-400 pb-3">—</span>
+        <DatePicker
+          label="До"
+          value={dateRange.to}
+          onChange={(value) => setDateRange({ ...dateRange, to: value })}
+          className="w-48"
+        />
       </div>
 
       {/* Stats cards */}
@@ -253,51 +250,33 @@ function ExpenseModal({
 
           <form onSubmit={handleSubmit} className="p-4 space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Категория *
-                </label>
-                <select
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value as ExpenseCategory })}
-                  className="input"
-                >
-                  {Object.entries(categoryLabels).map(([value, label]) => (
-                    <option key={value} value={value}>{label}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Дата *
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  className="input"
-                />
-              </div>
+              <SelectDropdown
+                label="Категория"
+                required
+                value={formData.category}
+                onChange={(value) => setFormData({ ...formData, category: value as ExpenseCategory })}
+                options={Object.entries(categoryLabels).map(([value, label]) => ({ value, label }))}
+              />
+              <DatePicker
+                label="Дата"
+                value={formData.date}
+                onChange={(value) => setFormData({ ...formData, date: value })}
+              />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Автомобиль
-              </label>
-              <select
-                value={formData.vehicleId ?? ''}
-                onChange={(e) => setFormData({ ...formData, vehicleId: e.target.value ? parseInt(e.target.value) : undefined })}
-                className="input"
-              >
-                <option value="">Без автомобиля</option>
-                {vehicles.map((vehicle) => (
-                  <option key={vehicle.id} value={vehicle.id}>
-                    {vehicle.brand} {vehicle.model} ({vehicle.licensePlate})
-                  </option>
-                ))}
-              </select>
-            </div>
+            <SelectDropdown
+              label="Автомобиль"
+              value={formData.vehicleId?.toString() ?? ''}
+              onChange={(value) => setFormData({ ...formData, vehicleId: value ? parseInt(value) : undefined })}
+              options={[
+                { value: '', label: 'Без автомобиля' },
+                ...vehicles.map((vehicle) => ({
+                  value: vehicle.id.toString(),
+                  label: `${vehicle.brand} ${vehicle.model} (${vehicle.licensePlate})`
+                }))
+              ]}
+              placeholder="Выберите автомобиль"
+            />
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

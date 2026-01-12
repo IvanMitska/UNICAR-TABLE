@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { Client, ClientStatus, ClientFormData } from '@/types'
 import clsx from 'clsx'
+import SelectDropdown from '@/components/ui/SelectDropdown'
+import DatePicker from '@/components/ui/DatePicker'
 
 const statusLabels: Record<ClientStatus, string> = {
   active: 'Активен',
@@ -172,18 +174,17 @@ export default function ClientsPage() {
             className="input-enhanced pl-12"
           />
         </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as ClientStatus | 'all')}
-          className="select-enhanced w-full sm:w-48"
-        >
-          <option value="all">Все статусы</option>
-          {Object.entries(statusLabels).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
+        <div className="w-full sm:w-48">
+          <SelectDropdown
+            value={statusFilter}
+            onChange={(value) => setStatusFilter(value as ClientStatus | 'all')}
+            options={[
+              { value: 'all', label: 'Все статусы' },
+              ...Object.entries(statusLabels).map(([value, label]) => ({ value, label }))
+            ]}
+            placeholder="Статус"
+          />
+        </div>
       </div>
 
       {/* Clients list */}
@@ -361,30 +362,17 @@ function ClientModal({
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="form-label required">Дата рождения</label>
-                    <input
-                      type="date"
-                      required
-                      value={formData.birthDate}
-                      onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
-                      className="input-enhanced"
-                    />
-                  </div>
-                  <div>
-                    <label className="form-label">Статус</label>
-                    <select
-                      value={formData.status}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.value as ClientStatus })}
-                      className="select-enhanced"
-                    >
-                      {Object.entries(statusLabels).map(([value, label]) => (
-                        <option key={value} value={value}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <DatePicker
+                    label="Дата рождения"
+                    value={formData.birthDate}
+                    onChange={(value) => setFormData({ ...formData, birthDate: value })}
+                  />
+                  <SelectDropdown
+                    label="Статус"
+                    value={formData.status}
+                    onChange={(value) => setFormData({ ...formData, status: value as ClientStatus })}
+                    options={Object.entries(statusLabels).map(([value, label]) => ({ value, label }))}
+                  />
                 </div>
               </div>
             </div>
@@ -474,16 +462,11 @@ function ClientModal({
                     placeholder="Номер прав"
                   />
                 </div>
-                <div>
-                  <label className="form-label required">ВУ действительно до</label>
-                  <input
-                    type="date"
-                    required
-                    value={formData.licenseExpiry}
-                    onChange={(e) => setFormData({ ...formData, licenseExpiry: e.target.value })}
-                    className="input-enhanced"
-                  />
-                </div>
+                <DatePicker
+                  label="ВУ действительно до"
+                  value={formData.licenseExpiry}
+                  onChange={(value) => setFormData({ ...formData, licenseExpiry: value })}
+                />
               </div>
             </div>
 
