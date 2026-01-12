@@ -21,13 +21,14 @@ const __dirname = path.dirname(__filename)
 
 const app = express()
 const PORT = process.env.PORT || 3001
+const isProduction = process.env.RAILWAY_ENVIRONMENT === 'production' || process.env.NODE_ENV === 'production'
 
 // Middleware
 app.use(express.json())
 app.use(cookieParser())
 
 // CORS - only needed in development
-if (process.env.NODE_ENV !== 'production') {
+if (!isProduction) {
   app.use(cors({
     origin: 'http://localhost:3000',
     credentials: true,
@@ -66,7 +67,7 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 })
 
 // Serve static files in production
-if (process.env.NODE_ENV === 'production') {
+if (isProduction) {
   const clientPath = path.join(__dirname, '../../client/dist')
   app.use(express.static(clientPath))
 
