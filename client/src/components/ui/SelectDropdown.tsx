@@ -70,34 +70,40 @@ export default function SelectDropdown({
 
       {/* Dropdown */}
       {isOpen && (
-        <div className={clsx(
-          'absolute z-50 mt-2 w-full py-2 rounded-2xl max-h-60 overflow-y-auto',
-          'bg-white dark:bg-zinc-900',
-          'border border-gray-200 dark:border-zinc-700',
-          'shadow-lg shadow-black/10 dark:shadow-black/30',
-          'animate-in fade-in slide-in-from-top-2 duration-200'
-        )}>
-          {options.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => {
-                onChange(option.value)
-                setIsOpen(false)
-              }}
-              className={clsx(
-                'w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors',
-                option.value === value
-                  ? 'text-gray-900 dark:text-white font-medium bg-gray-50 dark:bg-zinc-800'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-zinc-800'
-              )}
-            >
-              <span className="w-4 flex-shrink-0">
-                {option.value === value && <CheckIcon className="w-4 h-4 text-gray-900 dark:text-white" />}
-              </span>
-              {option.label}
-            </button>
-          ))}
+        <div
+          className={clsx(
+            'absolute left-0 z-[9999] mt-2 min-w-full py-2 rounded-2xl max-h-60 overflow-y-auto',
+            'bg-white dark:bg-zinc-900',
+            'border border-gray-200 dark:border-zinc-700',
+            'shadow-xl shadow-black/15 dark:shadow-black/40'
+          )}
+          style={{ minWidth: '200px' }}
+        >
+          {options.length === 0 ? (
+            <div className="px-4 py-3 text-sm text-gray-500">Нет опций</div>
+          ) : (
+            options.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => {
+                  onChange(option.value)
+                  setIsOpen(false)
+                }}
+                className={clsx(
+                  'w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors',
+                  option.value === value
+                    ? 'text-gray-900 dark:text-white font-medium bg-gray-100 dark:bg-zinc-800'
+                    : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-zinc-800'
+                )}
+              >
+                <span className="w-4 h-4 flex-shrink-0 flex items-center justify-center">
+                  {option.value === value && <CheckIcon className="w-4 h-4 text-gray-900 dark:text-white" />}
+                </span>
+                <span className="truncate">{option.label}</span>
+              </button>
+            ))
+          )}
         </div>
       )}
     </div>

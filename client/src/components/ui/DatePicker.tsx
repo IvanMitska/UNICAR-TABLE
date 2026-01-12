@@ -146,13 +146,15 @@ export default function DatePicker({ value, onChange, placeholder = 'Выбер�
 
       {/* Calendar Popup */}
       {isOpen && (
-        <div className={clsx(
-          'absolute z-50 mt-2 p-4 rounded-2xl',
-          'bg-white dark:bg-zinc-900',
-          'border border-gray-200 dark:border-zinc-700',
-          'shadow-xl shadow-black/10 dark:shadow-black/30',
-          'animate-in fade-in slide-in-from-top-2 duration-200'
-        )}>
+        <div
+          className={clsx(
+            'absolute left-0 z-[9999] mt-2 p-4 rounded-2xl',
+            'bg-white dark:bg-zinc-900',
+            'border border-gray-200 dark:border-zinc-700',
+            'shadow-xl shadow-black/15 dark:shadow-black/40'
+          )}
+          style={{ minWidth: '300px' }}
+        >
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
             <button
@@ -177,7 +179,7 @@ export default function DatePicker({ value, onChange, placeholder = 'Выбер�
           {/* Days header */}
           <div className="grid grid-cols-7 gap-1 mb-2">
             {DAYS.map((day) => (
-              <div key={day} className="w-9 h-9 flex items-center justify-center text-xs font-medium text-gray-400">
+              <div key={day} className="w-10 h-10 flex items-center justify-center text-xs font-medium text-gray-500 dark:text-gray-400">
                 {day}
               </div>
             ))}
@@ -186,7 +188,7 @@ export default function DatePicker({ value, onChange, placeholder = 'Выбер�
           {/* Days grid */}
           <div className="grid grid-cols-7 gap-1">
             {days.map((day, index) => (
-              <div key={index} className="w-9 h-9">
+              <div key={index} className="w-10 h-10">
                 {day && (
                   <button
                     type="button"
@@ -194,9 +196,9 @@ export default function DatePicker({ value, onChange, placeholder = 'Выбер�
                     className={clsx(
                       'w-full h-full flex items-center justify-center text-sm rounded-full transition-all',
                       isSelectedDay(day)
-                        ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-medium'
+                        ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-semibold'
                         : isToday(day)
-                        ? 'bg-gray-100 dark:bg-zinc-800 text-gray-900 dark:text-white font-medium'
+                        ? 'bg-gray-100 dark:bg-zinc-800 text-gray-900 dark:text-white font-medium ring-1 ring-gray-300 dark:ring-zinc-600'
                         : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800'
                     )}
                   >
