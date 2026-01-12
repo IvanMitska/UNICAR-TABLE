@@ -2,6 +2,8 @@ import express from 'express'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
 import { rateLimit } from 'express-rate-limit'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import { initDatabase } from './db/database.js'
 import authRoutes from './routes/auth.js'
 import vehiclesRoutes from './routes/vehicles.js'
@@ -14,19 +16,23 @@ import notificationsRoutes from './routes/notifications.js'
 import backupRoutes from './routes/backup.js'
 import { authMiddleware } from './middleware/auth.js'
 
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
 const app = express()
 const PORT = process.env.PORT || 3001
 
-// CORS configuration
-const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3000'
-
 // Middleware
-app.use(cors({
-  origin: corsOrigin,
-  credentials: true,
-}))
 app.use(express.json())
 app.use(cookieParser())
+
+// CORS - only needed in development
+if (process.env.NODE_ENV !== 'production') {
+  app.use(cors({
+    origin: 'http://localhost:3000',
+    credentials: true,
+  }))
+}
 
 // Rate limiting for auth routes
 const authLimiter = rateLimit({
@@ -58,6 +64,17 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   console.error(err.stack)
   res.status(500).json({ error: 'Internal server error' })
 })
+
+// Serve static files in production
+if (process.env.NODE_ENV === 'production') {
+  const clientPath = path.join(__dirname, '../../client/dist')
+  app.use(express.static(clientPath))
+
+  // Handle client-side routing
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(clientPath, 'index.html'))
+  })
+}
 
 // Initialize database and start server
 async function start() {
