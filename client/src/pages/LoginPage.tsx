@@ -187,11 +187,6 @@ export default function LoginPage() {
             <span className="text-amber-500">Попыток: {5 - failedAttempts}</span>
           )}
         </div>
-
-        {/* Hint */}
-        <p className="text-center text-xs text-gray-400 dark:text-gray-600">
-          PIN по умолчанию: 1124
-        </p>
       </div>
 
       {/* Shake animation */}
