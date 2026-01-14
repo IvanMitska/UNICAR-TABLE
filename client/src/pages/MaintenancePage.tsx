@@ -245,6 +245,9 @@ export default function MaintenancePage() {
     }).format(amount)
   }
 
+  // Vehicles currently in maintenance
+  const vehiclesInMaintenance = vehicles.filter(v => v.status === 'maintenance')
+
   // Stats
   const stats = {
     total: records.length,
@@ -254,6 +257,7 @@ export default function MaintenancePage() {
       const now = new Date()
       return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()
     }).length,
+    inMaintenance: vehiclesInMaintenance.length,
   }
 
   if (isLoading) {
@@ -287,7 +291,7 @@ export default function MaintenancePage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         <div className="flex flex-col items-center justify-center py-5 px-4 rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm animate-slide-up" style={{ animationDelay: '0ms' }}>
           <span className="text-gray-400 dark:text-gray-500 mb-2">
             <WrenchIcon className="w-5 h-5" />
@@ -309,7 +313,54 @@ export default function MaintenancePage() {
           <p className="text-2xl font-semibold text-gray-900 dark:text-white tracking-tight">{stats.thisMonth}</p>
           <p className="text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-1">В этом месяце</p>
         </div>
+        <div className="flex flex-col items-center justify-center py-5 px-4 rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 shadow-sm animate-slide-up" style={{ animationDelay: '150ms' }}>
+          <span className="text-amber-500 dark:text-amber-400 mb-2">
+            <ToolIcon className="w-5 h-5" />
+          </span>
+          <p className="text-2xl font-semibold text-amber-600 dark:text-amber-400 tracking-tight">{stats.inMaintenance}</p>
+          <p className="text-[10px] font-medium uppercase tracking-wider text-amber-500 dark:text-amber-500 mt-1">Сейчас на ТО</p>
+        </div>
       </div>
+
+      {/* Vehicles in maintenance section */}
+      {vehiclesInMaintenance.length > 0 && (
+        <div className="animate-slide-up" style={{ animationDelay: '200ms' }}>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+            <ToolIcon className="w-5 h-5 text-amber-500" />
+            Машины на ТО
+            <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+              {vehiclesInMaintenance.length}
+            </span>
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {vehiclesInMaintenance.map((vehicle, index) => (
+              <div
+                key={vehicle.id}
+                className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/50 animate-slide-up"
+                style={{ animationDelay: `${250 + index * 50}ms` }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
+                    <CarIcon className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-gray-900 dark:text-white truncate">
+                      {vehicle.brand} {vehicle.model}
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{vehicle.licensePlate}</p>
+                  </div>
+                  <span className="badge badge-warning">На ТО</span>
+                </div>
+                {vehicle.notes && (
+                  <p className="mt-3 text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                    {vehicle.notes}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Filter */}
       <div className="animate-slide-up w-full sm:w-72" style={{ animationDelay: '150ms' }}>
@@ -742,6 +793,14 @@ function CheckSmallIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+    </svg>
+  )
+}
+
+function ToolIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437l1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008z" />
     </svg>
   )
 }
