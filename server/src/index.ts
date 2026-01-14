@@ -74,10 +74,21 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 // Serve static files in production
 if (isProduction) {
   const clientPath = path.join(__dirname, '../../client/dist')
-  app.use(express.static(clientPath))
 
-  // Handle client-side routing
+  // Serve static assets with cache
+  app.use(express.static(clientPath, {
+    maxAge: '1d',
+    setHeaders: (res, filePath) => {
+      // Disable cache for HTML files
+      if (filePath.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+      }
+    }
+  }))
+
+  // Handle client-side routing - always serve fresh index.html
   app.get('*', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
     res.sendFile(path.join(clientPath, 'index.html'))
   })
 }
@@ -89,6 +100,11 @@ async function start() {
 
     app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`)
+      console.log(`Environment: ${isProduction ? 'production' : 'development'}`)
+      if (isProduction) {
+        const clientPath = path.join(__dirname, '../../client/dist')
+        console.log(`Serving static files from: ${clientPath}`)
+      }
     })
   } catch (error) {
     console.error('Failed to start server:', error)
