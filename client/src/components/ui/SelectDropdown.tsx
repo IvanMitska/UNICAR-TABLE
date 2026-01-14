@@ -59,10 +59,16 @@ export default function SelectDropdown({
     }
   }, [isOpen])
 
-  // Close on scroll
+  // Close on page scroll (but not dropdown scroll)
   useEffect(() => {
     if (!isOpen) return
-    const handleScroll = () => setIsOpen(false)
+    const handleScroll = (e: Event) => {
+      // Don't close if scrolling inside the dropdown
+      if (dropdownRef.current && dropdownRef.current.contains(e.target as Node)) {
+        return
+      }
+      setIsOpen(false)
+    }
     window.addEventListener('scroll', handleScroll, true)
     return () => window.removeEventListener('scroll', handleScroll, true)
   }, [isOpen])
