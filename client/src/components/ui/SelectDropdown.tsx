@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 
 interface SelectOption {
@@ -26,13 +27,19 @@ export default function SelectDropdown({
   required
 }: SelectDropdownProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const selectRef = useRef<HTMLDivElement>(null)
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 })
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   const selectedOption = options.find(opt => opt.value === value)
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (selectRef.current && !selectRef.current.contains(event.target as Node)) {
+      const target = event.target as Node
+      if (
+        triggerRef.current && !triggerRef.current.contains(target) &&
+        dropdownRef.current && !dropdownRef.current.contains(target)
+      ) {
         setIsOpen(false)
       }
     }
@@ -41,8 +48,27 @@ export default function SelectDropdown({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  useEffect(() => {
+    if (isOpen && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect()
+      setDropdownPosition({
+        top: rect.bottom + window.scrollY + 8,
+        left: rect.left + window.scrollX,
+        width: rect.width
+      })
+    }
+  }, [isOpen])
+
+  // Close on scroll
+  useEffect(() => {
+    if (!isOpen) return
+    const handleScroll = () => setIsOpen(false)
+    window.addEventListener('scroll', handleScroll, true)
+    return () => window.removeEventListener('scroll', handleScroll, true)
+  }, [isOpen])
+
   return (
-    <div ref={selectRef} className={clsx('relative', className)}>
+    <div className={className}>
       {label && (
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
           {label} {required && <span className="text-red-500">*</span>}
@@ -51,6 +77,7 @@ export default function SelectDropdown({
 
       {/* Trigger */}
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={clsx(
@@ -68,16 +95,22 @@ export default function SelectDropdown({
         <ChevronIcon className={clsx('w-4 h-4 text-gray-400 transition-transform', isOpen && 'rotate-180')} />
       </button>
 
-      {/* Dropdown */}
-      {isOpen && (
+      {/* Dropdown Portal */}
+      {isOpen && createPortal(
         <div
+          ref={dropdownRef}
           className={clsx(
-            'absolute left-0 z-[9999] mt-2 min-w-full py-2 rounded-2xl max-h-60 overflow-y-auto',
+            'fixed py-2 rounded-2xl max-h-60 overflow-y-auto',
             'bg-white dark:bg-zinc-900',
             'border border-gray-200 dark:border-zinc-700',
             'shadow-xl shadow-black/15 dark:shadow-black/40'
           )}
-          style={{ minWidth: '200px' }}
+          style={{
+            top: dropdownPosition.top,
+            left: dropdownPosition.left,
+            width: Math.max(dropdownPosition.width, 200),
+            zIndex: 99999
+          }}
         >
           {options.length === 0 ? (
             <div className="px-4 py-3 text-sm text-gray-500">Нет опций</div>
@@ -104,7 +137,8 @@ export default function SelectDropdown({
               </button>
             ))
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
