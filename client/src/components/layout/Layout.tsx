@@ -159,11 +159,12 @@ export default function Layout() {
           'flex items-center justify-between h-16 border-b border-gray-100 dark:border-zinc-800',
           sidebarCollapsed ? 'px-2' : 'px-4'
         )}>
-          <img
-            src="/unicar-logo.png"
-            alt="UNICAR"
-            className={clsx(sidebarCollapsed ? 'h-8' : 'h-7', 'object-contain')}
-          />
+          <span className={clsx(
+            'font-bold tracking-wider text-gray-900 dark:text-white',
+            sidebarCollapsed ? 'text-sm' : 'text-lg'
+          )}>
+            UNICAR
+          </span>
 
           {/* Collapse button - desktop only */}
           <button
