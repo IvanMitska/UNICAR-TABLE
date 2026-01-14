@@ -22,10 +22,30 @@ const managementNav = [
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [activeRentalsCount, setActiveRentalsCount] = useState(0)
   const { logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
   const location = useLocation()
+
+  // Fetch active rentals count
+  useEffect(() => {
+    const fetchActiveRentals = async () => {
+      try {
+        const response = await fetch('/api/rentals/active')
+        if (response.ok) {
+          const data = await response.json()
+          setActiveRentalsCount(data.length)
+        }
+      } catch (error) {
+        console.error('Failed to fetch active rentals:', error)
+      }
+    }
+    fetchActiveRentals()
+    // Refetch every 30 seconds
+    const interval = setInterval(fetchActiveRentals, 30000)
+    return () => clearInterval(interval)
+  }, [location.pathname])
 
   // Close mobile sidebar on route change
   useEffect(() => {
@@ -72,9 +92,9 @@ export default function Layout() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="truncate">{item.name}</span>
-                {item.badge && (
-                  <span className="flex items-center justify-center w-5 h-5 text-[10px] font-bold bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-full">
-                    3
+                {item.badge && activeRentalsCount > 0 && (
+                  <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[10px] font-bold bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-full">
+                    {activeRentalsCount}
                   </span>
                 )}
               </div>
