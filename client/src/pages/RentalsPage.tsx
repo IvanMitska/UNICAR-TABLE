@@ -435,26 +435,26 @@ export default function RentalsPage() {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap lg:flex-nowrap gap-3 text-sm">
-                  <div className="flex-1 min-w-[100px] p-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700">
+                <div className="grid grid-cols-4 gap-3 text-sm" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+                  <div className="p-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700">
                     <span className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wider">Начало</span>
                     <p className="font-semibold text-gray-900 dark:text-white mt-0.5">
                       {formatDate(rental.startDate)}
                     </p>
                   </div>
-                  <div className="flex-1 min-w-[100px] p-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700">
+                  <div className="p-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700">
                     <span className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wider">Конец</span>
                     <p className="font-semibold text-gray-900 dark:text-white mt-0.5">
                       {formatDate(rental.plannedEndDate)}
                     </p>
                   </div>
-                  <div className="flex-1 min-w-[120px] p-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700">
+                  <div className="p-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700">
                     <span className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wider">Тариф</span>
-                    <p className="font-semibold text-gray-900 dark:text-white mt-0.5 whitespace-nowrap">
+                    <p className="font-semibold text-gray-900 dark:text-white mt-0.5 text-sm">
                       {formatCurrency(rental.rateAmount)}<span className="text-xs text-gray-400">/{rateLabels[rental.rateType].toLowerCase()}</span>
                     </p>
                   </div>
-                  <div className="flex-1 min-w-[100px] p-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700">
+                  <div className="p-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700">
                     <span className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wider">Итого</span>
                     <p className="font-bold text-gray-900 dark:text-white mt-0.5">
                       {formatCurrency(rental.totalAmount)}
