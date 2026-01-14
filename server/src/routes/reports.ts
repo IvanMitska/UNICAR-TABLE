@@ -38,12 +38,14 @@ router.get('/summary', async (req: Request, res: Response) => {
       SELECT COUNT(*) as count FROM vehicles WHERE status = 'available'
     `)
 
-    // Total income for period (from completed rentals)
+    // Total income for period (from active and completed rentals)
     const incomeResult = await pool.query<SumResult>(`
       SELECT COALESCE(SUM(total_amount), 0) as total
       FROM rentals
-      WHERE status = 'completed'
-      AND DATE(actual_end_date) BETWEEN $1 AND $2
+      WHERE (
+        (status = 'completed' AND DATE(actual_end_date) BETWEEN $1 AND $2)
+        OR (status = 'active' AND DATE(start_date) BETWEEN $1 AND $2)
+      )
     `, [startDate, endDate])
 
     // Total expenses for period
@@ -128,16 +130,20 @@ router.get('/income', async (req: Request, res: Response) => {
       FROM rentals r
       LEFT JOIN vehicles v ON r.vehicle_id = v.id
       LEFT JOIN clients c ON r.client_id = c.id
-      WHERE r.status = 'completed'
-      AND DATE(r.actual_end_date) BETWEEN $1 AND $2
-      ORDER BY r.actual_end_date DESC
+      WHERE (
+        (r.status = 'completed' AND DATE(r.actual_end_date) BETWEEN $1 AND $2)
+        OR (r.status = 'active' AND DATE(r.start_date) BETWEEN $1 AND $2)
+      )
+      ORDER BY COALESCE(r.actual_end_date, r.start_date) DESC
     `, [from, to])
 
     const totalResult = await pool.query<SumResult>(`
       SELECT COALESCE(SUM(total_amount), 0) as total
       FROM rentals
-      WHERE status = 'completed'
-      AND DATE(actual_end_date) BETWEEN $1 AND $2
+      WHERE (
+        (status = 'completed' AND DATE(actual_end_date) BETWEEN $1 AND $2)
+        OR (status = 'active' AND DATE(start_date) BETWEEN $1 AND $2)
+      )
     `, [from, to])
 
     res.json({
