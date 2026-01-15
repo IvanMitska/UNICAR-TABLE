@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { useTheme } from '@/context/ThemeContext'
+import SearchModal from './SearchModal'
+import NotificationsDropdown from './NotificationsDropdown'
 import clsx from 'clsx'
 
 const mainNav = [
@@ -23,10 +25,27 @@ export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [activeRentalsCount, setActiveRentalsCount] = useState(0)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [notificationsCount, setNotificationsCount] = useState(0)
   const { logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
   const location = useLocation()
+
+  // Keyboard shortcut for search (⌘K or Ctrl+K)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setSearchOpen(true)
+      }
+      if (e.key === 'Escape') {
+        setSearchOpen(false)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   // Fetch active rentals count
   useEffect(() => {
@@ -290,28 +309,22 @@ export default function Layout() {
 
           {/* Search bar */}
           <div className="flex-1 max-w-xl">
-            <div className="relative group">
-              <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-gray-600 dark:group-focus-within:text-gray-300 transition-colors" />
-              <input
-                type="text"
-                placeholder="Поиск по системе..."
-                className="w-full h-11 pl-11 pr-16 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 focus:border-gray-300 dark:focus:border-zinc-600 focus:bg-white dark:focus:bg-zinc-800 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 outline-none transition-all"
-              />
-              <kbd className="hidden sm:flex absolute right-3 top-1/2 -translate-y-1/2 items-center gap-1 px-2 py-1 text-[10px] font-medium text-gray-400 bg-gray-100 dark:bg-zinc-700 border border-gray-200 dark:border-zinc-600 rounded-lg">
+            <button
+              onClick={() => setSearchOpen(true)}
+              className="w-full h-11 flex items-center gap-3 px-4 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 hover:bg-gray-100 dark:hover:bg-zinc-700 hover:border-gray-200 dark:hover:border-zinc-600 transition-all text-left"
+            >
+              <SearchIcon className="w-5 h-5 text-gray-400" />
+              <span className="flex-1 text-sm text-gray-400 dark:text-gray-500">Поиск по системе...</span>
+              <kbd className="hidden sm:flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-gray-400 bg-gray-100 dark:bg-zinc-700 border border-gray-200 dark:border-zinc-600 rounded-lg">
                 ⌘K
               </kbd>
-            </div>
+            </button>
           </div>
 
           {/* Right section */}
           <div className="flex items-center gap-2">
             {/* Notifications */}
-            <button className="relative p-2.5 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 hover:bg-gray-100 dark:hover:bg-zinc-700 transition-all group">
-              <BellIcon className="w-5 h-5 text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200 transition-colors" />
-              <span className="absolute -top-1 -right-1 flex items-center justify-center w-5 h-5 text-[10px] font-bold bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-full ring-2 ring-white dark:ring-zinc-900">
-                2
-              </span>
-            </button>
+            <NotificationsDropdown onCountChange={setNotificationsCount} />
 
             {/* User menu */}
             <div className="hidden sm:flex items-center gap-3 pl-3 ml-1 border-l border-gray-200 dark:border-zinc-700">
@@ -331,6 +344,9 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+
+      {/* Search Modal */}
+      <SearchModal isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   )
 }
