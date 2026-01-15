@@ -45,8 +45,8 @@ router.get('/', async (req: Request, res: Response) => {
       notifications.push({
         id: `rental-ending-${r.id}`,
         type: 'rental_ending',
-        title: 'Rental ending soon',
-        message: `${r.brand} ${r.model} - ${r.full_name} returns in ${hoursLeft} hours`,
+        title: 'Скоро возврат',
+        message: `${r.brand} ${r.model} - ${r.full_name} вернёт через ${hoursLeft} ч`,
         relatedId: r.id,
         relatedType: 'rental',
         isRead: false,
@@ -77,8 +77,8 @@ router.get('/', async (req: Request, res: Response) => {
       notifications.push({
         id: `insurance-${v.id}`,
         type: 'insurance_expiry',
-        title: 'Insurance expiring',
-        message: `${v.brand} ${v.model} (${v.license_plate}) - ${daysLeft} days left`,
+        title: 'Истекает страховка',
+        message: `${v.brand} ${v.model} (${v.license_plate}) - осталось ${daysLeft} дн`,
         relatedId: v.id,
         relatedType: 'vehicle',
         isRead: false,
@@ -109,8 +109,8 @@ router.get('/', async (req: Request, res: Response) => {
       notifications.push({
         id: `inspection-${v.id}`,
         type: 'inspection_expiry',
-        title: 'Inspection expiring',
-        message: `${v.brand} ${v.model} (${v.license_plate}) - ${daysLeft} days left`,
+        title: 'Истекает ТО',
+        message: `${v.brand} ${v.model} (${v.license_plate}) - осталось ${daysLeft} дн`,
         relatedId: v.id,
         relatedType: 'vehicle',
         isRead: false,
@@ -138,8 +138,8 @@ router.get('/', async (req: Request, res: Response) => {
       notifications.push({
         id: `license-${c.id}`,
         type: 'license_expiry',
-        title: 'Client license expiring',
-        message: `${c.full_name} - license expires in ${daysLeft} days`,
+        title: 'Истекает права клиента',
+        message: `${c.full_name} - права истекают через ${daysLeft} дн`,
         relatedId: c.id,
         relatedType: 'client',
         isRead: false,
@@ -171,17 +171,17 @@ router.get('/', async (req: Request, res: Response) => {
       let message = `${v.brand} ${v.model} - `
       if (v.next_maintenance_mileage && v.mileage >= v.next_maintenance_mileage - 500) {
         const kmLeft = v.next_maintenance_mileage - v.mileage
-        message += `${kmLeft} km until service`
+        message += `${kmLeft} км до ТО`
       } else if (v.next_maintenance_date) {
         const date = new Date(v.next_maintenance_date)
         const daysLeft = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-        message += `service in ${daysLeft} days`
+        message += `ТО через ${daysLeft} дн`
       }
 
       notifications.push({
         id: `maintenance-${v.id}`,
         type: 'maintenance_due',
-        title: 'Maintenance due',
+        title: 'Требуется ТО',
         message,
         relatedId: v.id,
         relatedType: 'vehicle',
