@@ -5,6 +5,11 @@
 @layer base {
   html {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background-color: #f0f2f5;
+  }
+
+  .dark html {
+    background-color: #030712;
   }
 
   body {
