@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import type { Client, ClientStatus, ClientFormData } from '@/types'
+import type { Client, ClientStatus, ClientFormData, Rental } from '@/types'
 import clsx from 'clsx'
 import SelectDropdown from '@/components/ui/SelectDropdown'
 import DatePicker from '@/components/ui/DatePicker'
@@ -23,6 +23,7 @@ export default function ClientsPage() {
   const [statusFilter, setStatusFilter] = useState<ClientStatus | 'all'>('all')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingClient, setEditingClient] = useState<Client | null>(null)
+  const [viewingClient, setViewingClient] = useState<Client | null>(null)
 
   useEffect(() => {
     fetchClients()
@@ -205,7 +206,8 @@ export default function ClientsPage() {
           {filteredClients.map((client, index) => (
             <div
               key={client.id}
-              className="p-4 animate-slide-up rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm"
+              onClick={() => setViewingClient(client)}
+              className="p-4 animate-slide-up rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm cursor-pointer hover:border-gray-200 dark:hover:border-zinc-700 hover:shadow-md transition-all"
               style={{ animationDelay: `${200 + index * 50}ms` }}
             >
               <div className="flex flex-col sm:flex-row sm:items-center gap-4">
@@ -247,7 +249,8 @@ export default function ClientsPage() {
                   </span>
                   <div className="flex gap-1">
                     <button
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation()
                         setEditingClient(client)
                         setIsModalOpen(true)
                       }}
@@ -256,7 +259,10 @@ export default function ClientsPage() {
                       <EditIcon className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => handleDelete(client.id)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDelete(client.id)
+                      }}
                       className="p-2 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
                     >
                       <TrashIcon className="w-4 h-4" />
@@ -269,7 +275,7 @@ export default function ClientsPage() {
         </div>
       )}
 
-      {/* Modal */}
+      {/* Edit Modal */}
       {isModalOpen && (
         <ClientModal
           client={editingClient}
@@ -278,6 +284,19 @@ export default function ClientsPage() {
             setEditingClient(null)
           }}
           onSave={handleSave}
+        />
+      )}
+
+      {/* View Modal */}
+      {viewingClient && (
+        <ClientDetailModal
+          client={viewingClient}
+          onClose={() => setViewingClient(null)}
+          onEdit={() => {
+            setEditingClient(viewingClient)
+            setIsModalOpen(true)
+            setViewingClient(null)
+          }}
         />
       )}
     </div>
@@ -499,6 +518,241 @@ function ClientModal({
   )
 }
 
+function ClientDetailModal({
+  client,
+  onClose,
+  onEdit,
+}: {
+  client: Client
+  onClose: () => void
+  onEdit: () => void
+}) {
+  const [rentals, setRentals] = useState<Rental[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    fetchClientRentals()
+  }, [client.id])
+
+  const fetchClientRentals = async () => {
+    try {
+      const response = await fetch('/api/rentals')
+      if (response.ok) {
+        const data = await response.json()
+        // Filter rentals for this client
+        const clientRentals = data.filter((r: Rental) => r.client?.id === client.id)
+        setRentals(clientRentals)
+      }
+    } catch (error) {
+      console.error('Failed to fetch rentals:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    })
+  }
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('th-TH', {
+      style: 'currency',
+      currency: 'THB',
+      maximumFractionDigits: 0,
+    }).format(amount)
+  }
+
+  const rentalStatusLabels: Record<string, string> = {
+    active: 'Активна',
+    completed: 'Завершена',
+    cancelled: 'Отменена',
+  }
+
+  const rentalStatusColors: Record<string, string> = {
+    active: 'badge-success',
+    completed: 'badge-gray',
+    cancelled: 'badge-danger',
+  }
+
+  // Stats
+  const totalRentals = rentals.length
+  const activeRentals = rentals.filter(r => r.status === 'active').length
+  const totalSpent = rentals.reduce((sum, r) => sum + (r.totalAmount || 0), 0)
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="modal-overlay" onClick={onClose} />
+      <div className="flex min-h-full items-center justify-center p-4">
+        <div className="modal-content relative z-10 w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-zinc-800">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-gray-100 dark:bg-zinc-800 flex items-center justify-center">
+                <span className="text-gray-500 dark:text-gray-400 font-bold text-2xl">
+                  {client.fullName.charAt(0).toUpperCase()}
+                </span>
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  {client.fullName}
+                </h2>
+                <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  <span className="flex items-center gap-1">
+                    <PhoneIcon className="w-3.5 h-3.5" />
+                    {client.phone}
+                  </span>
+                  {client.email && (
+                    <span className="flex items-center gap-1">
+                      <EmailIcon className="w-3.5 h-3.5" />
+                      {client.email}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={onEdit}
+                className="p-2.5 rounded-xl bg-gray-50 dark:bg-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors"
+              >
+                <EditIcon className="w-5 h-5 text-gray-500" />
+              </button>
+              <button
+                onClick={onClose}
+                className="p-2.5 rounded-xl bg-gray-50 dark:bg-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors"
+              >
+                <CloseIcon className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
+            {/* Client Info */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="p-4 rounded-xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700">
+                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Статус</p>
+                <span className={clsx('badge', statusColors[client.status])}>
+                  {statusLabels[client.status]}
+                </span>
+              </div>
+              <div className="p-4 rounded-xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700">
+                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Всего аренд</p>
+                <p className="text-xl font-semibold text-gray-900 dark:text-white">{totalRentals}</p>
+              </div>
+              <div className="p-4 rounded-xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700">
+                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Активных</p>
+                <p className="text-xl font-semibold text-gray-900 dark:text-white">{activeRentals}</p>
+              </div>
+              <div className="p-4 rounded-xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700">
+                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Потрачено</p>
+                <p className="text-xl font-semibold text-gray-900 dark:text-white">{formatCurrency(totalSpent)}</p>
+              </div>
+            </div>
+
+            {/* Documents */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="p-4 rounded-xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 flex items-center justify-center">
+                    <DocumentIcon className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">Паспорт</p>
+                    <p className="font-mono text-gray-900 dark:text-white">{client.passport}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-4 rounded-xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 flex items-center justify-center">
+                    <LicenseIcon className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">ВУ до {formatDate(client.licenseExpiry)}</p>
+                    <p className="font-mono text-gray-900 dark:text-white">{client.licenseNumber}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Rental History */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                <HistoryIcon className="w-4 h-4 text-gray-400" />
+                История аренд
+              </h3>
+
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="w-6 h-6 border-2 border-gray-300 dark:border-zinc-600 border-t-gray-600 dark:border-t-zinc-300 rounded-full animate-spin" />
+                </div>
+              ) : rentals.length === 0 ? (
+                <div className="text-center py-8 rounded-xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700">
+                  <CarIcon className="w-10 h-10 text-gray-300 dark:text-zinc-600 mx-auto mb-2" />
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Нет истории аренд</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {rentals.map((rental) => (
+                    <div
+                      key={rental.id}
+                      className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 flex items-center justify-center">
+                          <CarIcon className="w-5 h-5 text-gray-400" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            {rental.vehicle?.brand} {rental.vehicle?.model}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {formatDate(rental.startDate)} — {formatDate(rental.plannedEndDate)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <p className="font-semibold text-gray-900 dark:text-white">
+                          {formatCurrency(rental.totalAmount || 0)}
+                        </p>
+                        <span className={clsx('badge', rentalStatusColors[rental.status])}>
+                          {rentalStatusLabels[rental.status]}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Notes */}
+            {client.notes && (
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Заметки</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 p-4 rounded-xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700">
+                  {client.notes}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="p-4 border-t border-gray-100 dark:border-zinc-800">
+            <button onClick={onClose} className="w-full btn btn-secondary py-3">
+              Закрыть
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function UserIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -600,6 +854,38 @@ function TrashIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+    </svg>
+  )
+}
+
+function EmailIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+    </svg>
+  )
+}
+
+function LicenseIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5zm6-10.125a1.875 1.875 0 11-3.75 0 1.875 1.875 0 013.75 0zm1.294 6.336a6.721 6.721 0 01-3.17.789 6.721 6.721 0 01-3.168-.789 3.376 3.376 0 016.338 0z" />
+    </svg>
+  )
+}
+
+function HistoryIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
+
+function CarIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
     </svg>
   )
 }
