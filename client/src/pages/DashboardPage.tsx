@@ -172,8 +172,8 @@ export default function DashboardPage() {
 
           {activeRentals.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
-              <ClipboardIcon className="w-10 h-10 text-gray-300 dark:text-gray-600 mb-3" />
-              <p className="text-sm text-gray-400 dark:text-gray-500">Нет активных аренд</p>
+              <ClipboardIcon className="w-10 h-10 text-gray-400 dark:text-gray-600 mb-3" />
+              <p className="text-sm text-gray-500 dark:text-gray-500">Нет активных аренд</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -184,13 +184,13 @@ export default function DashboardPage() {
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 flex items-center justify-center">
-                      <CarIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                      <CarIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
                     </div>
                     <div>
                       <p className="font-medium text-gray-900 dark:text-white">
                         {rental.vehicle?.brand} {rental.vehicle?.model}
                       </p>
-                      <p className="text-sm text-gray-400 dark:text-gray-500">
+                      <p className="text-sm text-gray-500 dark:text-gray-500">
                         {rental.client?.fullName}
                       </p>
                     </div>
@@ -220,8 +220,8 @@ export default function DashboardPage() {
 
           {notifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
-              <BellIcon className="w-10 h-10 text-gray-300 dark:text-gray-600 mb-3" />
-              <p className="text-sm text-gray-400 dark:text-gray-500">Нет уведомлений</p>
+              <BellIcon className="w-10 h-10 text-gray-400 dark:text-gray-600 mb-3" />
+              <p className="text-sm text-gray-500 dark:text-gray-500">Нет уведомлений</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -259,8 +259,8 @@ export default function DashboardPage() {
             </div>
             {popularity.mostRented.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 text-center">
-                <CarIcon className="w-10 h-10 text-gray-300 dark:text-gray-600 mb-3" />
-                <p className="text-sm text-gray-400 dark:text-gray-500">Нет данных</p>
+                <CarIcon className="w-10 h-10 text-gray-400 dark:text-gray-600 mb-3" />
+                <p className="text-sm text-gray-500 dark:text-gray-500">Нет данных</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -306,8 +306,8 @@ export default function DashboardPage() {
             </div>
             {popularity.leastRented.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 text-center">
-                <CarIcon className="w-10 h-10 text-gray-300 dark:text-gray-600 mb-3" />
-                <p className="text-sm text-gray-400 dark:text-gray-500">Нет данных</p>
+                <CarIcon className="w-10 h-10 text-gray-400 dark:text-gray-600 mb-3" />
+                <p className="text-sm text-gray-500 dark:text-gray-500">Нет данных</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -361,9 +361,9 @@ function StatCard({
       className="flex flex-col items-center justify-center py-6 px-4 rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm animate-slide-up"
       style={{ animationDelay: `${index * 50}ms` }}
     >
-      <span className="text-gray-400 dark:text-gray-500 mb-3">{icon}</span>
+      <span className="text-gray-600 dark:text-gray-400 mb-3">{icon}</span>
       <p className="text-3xl font-semibold text-gray-900 dark:text-white tracking-tight">{value}</p>
-      <p className="text-[11px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-2">{title}</p>
+      <p className="text-[11px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-500 mt-2">{title}</p>
     </div>
   )
 }
@@ -381,9 +381,9 @@ function QuickActionCard({
   return (
     <Link
       to={href}
-      className="flex flex-col items-center justify-center gap-3 py-6 px-4 rounded-2xl bg-gray-50 dark:bg-zinc-800/60 border border-gray-100 dark:border-zinc-700 hover:bg-gray-100 dark:hover:bg-zinc-800 hover:border-gray-200 dark:hover:border-zinc-600 transition-all"
+      className="flex flex-col items-center justify-center gap-3 py-6 px-4 rounded-2xl bg-gray-50 dark:bg-zinc-800/60 border border-gray-200 dark:border-zinc-700 hover:bg-gray-100 dark:hover:bg-zinc-800 hover:border-gray-300 dark:hover:border-zinc-600 transition-all"
     >
-      <span className="text-gray-500 dark:text-gray-400">{icon}</span>
+      <span className="text-gray-700 dark:text-gray-400">{icon}</span>
       <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</span>
     </Link>
   )

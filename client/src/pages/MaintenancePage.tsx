@@ -293,25 +293,25 @@ export default function MaintenancePage() {
       {/* Stats */}
       <div className="grid grid-cols-4 gap-4">
         <div className="flex flex-col items-center justify-center py-5 px-4 rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm animate-slide-up" style={{ animationDelay: '0ms' }}>
-          <span className="text-gray-400 dark:text-gray-500 mb-2">
+          <span className="text-gray-600 dark:text-gray-400 mb-2">
             <WrenchIcon className="w-5 h-5" />
           </span>
           <p className="text-2xl font-semibold text-gray-900 dark:text-white tracking-tight">{stats.total}</p>
-          <p className="text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-1">Всего записей</p>
+          <p className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-500 mt-1">Всего записей</p>
         </div>
         <div className="flex flex-col items-center justify-center py-5 px-4 rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm animate-slide-up" style={{ animationDelay: '50ms' }}>
-          <span className="text-gray-400 dark:text-gray-500 mb-2">
+          <span className="text-gray-600 dark:text-gray-400 mb-2">
             <CurrencyIcon className="w-5 h-5" />
           </span>
           <p className="text-lg font-semibold text-gray-900 dark:text-white tracking-tight">{formatCurrency(stats.totalCost)}</p>
-          <p className="text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-1">Всего расходов</p>
+          <p className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-500 mt-1">Всего расходов</p>
         </div>
         <div className="flex flex-col items-center justify-center py-5 px-4 rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm animate-slide-up" style={{ animationDelay: '100ms' }}>
-          <span className="text-gray-400 dark:text-gray-500 mb-2">
+          <span className="text-gray-600 dark:text-gray-400 mb-2">
             <CalendarIcon className="w-5 h-5" />
           </span>
           <p className="text-2xl font-semibold text-gray-900 dark:text-white tracking-tight">{stats.thisMonth}</p>
-          <p className="text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-1">В этом месяце</p>
+          <p className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-500 mt-1">В этом месяце</p>
         </div>
         <div className="flex flex-col items-center justify-center py-5 px-4 rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 shadow-sm animate-slide-up" style={{ animationDelay: '150ms' }}>
           <span className="text-amber-500 dark:text-amber-400 mb-2">
