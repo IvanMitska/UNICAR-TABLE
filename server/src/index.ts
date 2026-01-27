@@ -14,6 +14,8 @@ import expensesRoutes from './routes/expenses.js'
 import reportsRoutes from './routes/reports.js'
 import notificationsRoutes from './routes/notifications.js'
 import backupRoutes from './routes/backup.js'
+import publicRoutes from './routes/public.js'
+import bookingRequestsRoutes from './routes/booking-requests.js'
 import { authMiddleware } from './middleware/auth.js'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -32,13 +34,33 @@ if (isProduction) {
 app.use(express.json())
 app.use(cookieParser())
 
-// CORS - only needed in development
-if (!isProduction) {
-  app.use(cors({
-    origin: 'http://localhost:3000',
-    credentials: true,
-  }))
-}
+// CORS configuration
+// In production: allow website domains for public API
+// In development: allow local dev servers
+const allowedOrigins = isProduction
+  ? [
+      'https://unicar-phuket.com',
+      'https://www.unicar-phuket.com',
+      'https://unicar-website.com',
+      'https://www.unicar-website.com',
+      'https://unicar-web-production.up.railway.app'
+    ]
+  : ['http://localhost:3000', 'http://localhost:5173']
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true)
+
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true)
+    } else {
+      // For public API routes, allow any origin
+      callback(null, true)
+    }
+  },
+  credentials: true,
+}))
 
 // Rate limiting for auth routes
 const authLimiter = rateLimit({
@@ -50,6 +72,9 @@ const authLimiter = rateLimit({
 // Routes
 app.use('/api/auth', authLimiter, authRoutes)
 
+// Public routes (no authentication required)
+app.use('/api/public', publicRoutes)
+
 // Protected routes
 app.use('/api/vehicles', authMiddleware, vehiclesRoutes)
 app.use('/api/clients', authMiddleware, clientsRoutes)
@@ -59,6 +84,7 @@ app.use('/api/expenses', authMiddleware, expensesRoutes)
 app.use('/api/reports', authMiddleware, reportsRoutes)
 app.use('/api/notifications', authMiddleware, notificationsRoutes)
 app.use('/api/backup', authMiddleware, backupRoutes)
+app.use('/api/booking-requests', authMiddleware, bookingRequestsRoutes)
 
 // Health check
 app.get('/api/health', (_, res) => {
