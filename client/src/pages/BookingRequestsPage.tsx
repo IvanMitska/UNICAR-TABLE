@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { BookingRequest, BookingRequestStatus, Client } from '@/types'
+import type { BookingRequest, BookingRequestStatus } from '@/types'
 import clsx from 'clsx'
 
 const API_URL = ''
@@ -75,12 +75,6 @@ const MapPinIcon = ({ className = 'w-5 h-5' }) => (
   </svg>
 )
 
-const ChevronDownIcon = ({ className = 'w-5 h-5' }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-  </svg>
-)
-
 function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString('ru-RU', {
     day: 'numeric',
@@ -114,7 +108,6 @@ export default function BookingRequestsPage() {
   const [filterStatus, setFilterStatus] = useState<BookingRequestStatus | 'all'>('all')
   const [selectedRequest, setSelectedRequest] = useState<BookingRequest | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [clients, setClients] = useState<Client[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [stats, setStats] = useState({ pending: 0, confirmed: 0, rejected: 0, completed: 0, total: 0 })
 
