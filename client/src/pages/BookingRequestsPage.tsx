@@ -123,12 +123,6 @@ export default function BookingRequestsPage() {
         const requestsData = await requestsRes.json()
         setRequests(requestsData)
 
-        // Fetch clients for confirm modal
-        const clientsRes = await fetch(`${API_URL}/api/clients`, { credentials: 'include' })
-        if (clientsRes.ok) {
-          setClients(await clientsRes.json())
-        }
-
         // Fetch stats
         const statsRes = await fetch(`${API_URL}/api/booking-requests/stats/summary`, { credentials: 'include' })
         if (statsRes.ok) {
