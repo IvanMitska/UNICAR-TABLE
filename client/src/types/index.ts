@@ -181,8 +181,69 @@ export interface ExpenseFormData {
   description: string
 }
 
+// Booking Request types (from website)
+export type BookingRequestStatus = 'pending' | 'confirmed' | 'rejected' | 'completed'
+
+export interface BookingRequest {
+  id: number
+  referenceCode: string
+  vehicleId: number
+  customerFirstName: string
+  customerLastName: string
+  customerEmail: string
+  customerPhone: string
+  customerBirthDate: string | null
+  customerLicenseNumber: string | null
+  customerLicenseIssueDate: string | null
+  startDate: string
+  endDate: string
+  pickupLocation: string
+  returnLocation: string
+  additionalServices: Array<{
+    id: string
+    name: string
+    price: number
+    perDay: boolean
+  }>
+  totalPrice: number
+  status: BookingRequestStatus
+  adminNotes: string | null
+  rentalId: number | null
+  createdAt: string
+  updatedAt: string
+  vehicle?: Vehicle
+}
+
+// Vehicle Metadata types (for website display)
+export interface VehicleMetadata {
+  id: number
+  vehicleId: number
+  websiteId: string
+  category: string
+  images: string[]
+  features: string[]
+  specifications: {
+    engine?: string
+    power?: string
+    acceleration?: string
+    topSpeed?: string
+  }
+  seats: number
+  luggage: number
+  rating: number
+  reviews: number
+  description: string | null
+  transmission: string
+  isVisible: boolean
+  displayOrder: number
+  priceByRequest: boolean
+  longTermOnly: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 // Notification types
-export type NotificationType = 'rental_ending' | 'insurance_expiry' | 'inspection_expiry' | 'maintenance_due' | 'license_expiry' | 'payment_overdue'
+export type NotificationType = 'rental_ending' | 'insurance_expiry' | 'inspection_expiry' | 'maintenance_due' | 'license_expiry' | 'payment_overdue' | 'new_booking'
 
 export interface Notification {
   id: number

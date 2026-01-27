@@ -130,6 +130,60 @@ CREATE TABLE IF NOT EXISTS sessions (
   created_at TIMESTAMP DEFAULT NOW(),
   expires_at TIMESTAMP NOT NULL
 );
+
+-- Vehicle metadata for website display
+CREATE TABLE IF NOT EXISTS vehicle_metadata (
+  id SERIAL PRIMARY KEY,
+  vehicle_id INTEGER NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+  website_id TEXT UNIQUE NOT NULL,
+  category TEXT NOT NULL DEFAULT 'economy',
+  images TEXT[] DEFAULT '{}',
+  features TEXT[] DEFAULT '{}',
+  specifications JSONB DEFAULT '{}',
+  seats INTEGER DEFAULT 5,
+  luggage INTEGER DEFAULT 2,
+  rating DECIMAL(2, 1) DEFAULT 4.5,
+  reviews INTEGER DEFAULT 0,
+  description TEXT,
+  transmission TEXT DEFAULT 'automatic',
+  is_visible BOOLEAN DEFAULT true,
+  display_order INTEGER DEFAULT 0,
+  price_by_request BOOLEAN DEFAULT false,
+  long_term_only BOOLEAN DEFAULT false,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Booking requests from website
+CREATE TABLE IF NOT EXISTS booking_requests (
+  id SERIAL PRIMARY KEY,
+  reference_code TEXT UNIQUE NOT NULL,
+  vehicle_id INTEGER NOT NULL REFERENCES vehicles(id),
+  customer_first_name TEXT NOT NULL,
+  customer_last_name TEXT NOT NULL,
+  customer_email TEXT NOT NULL,
+  customer_phone TEXT NOT NULL,
+  customer_birth_date DATE,
+  customer_license_number TEXT,
+  customer_license_issue_date DATE,
+  start_date TIMESTAMP NOT NULL,
+  end_date TIMESTAMP NOT NULL,
+  pickup_location TEXT NOT NULL,
+  return_location TEXT NOT NULL,
+  additional_services JSONB DEFAULT '[]',
+  total_price DECIMAL(10, 2) DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'pending',
+  admin_notes TEXT,
+  rental_id INTEGER REFERENCES rentals(id),
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Index for faster lookups
+CREATE INDEX IF NOT EXISTS idx_vehicle_metadata_vehicle_id ON vehicle_metadata(vehicle_id);
+CREATE INDEX IF NOT EXISTS idx_vehicle_metadata_website_id ON vehicle_metadata(website_id);
+CREATE INDEX IF NOT EXISTS idx_booking_requests_status ON booking_requests(status);
+CREATE INDEX IF NOT EXISTS idx_booking_requests_reference_code ON booking_requests(reference_code);
 `
 
 export async function initDatabase() {

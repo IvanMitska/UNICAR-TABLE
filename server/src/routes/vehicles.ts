@@ -225,4 +225,175 @@ router.delete('/:id', async (req: Request, res: Response) => {
   }
 })
 
+// Get vehicle metadata for website
+router.get('/:id/metadata', async (req: Request, res: Response) => {
+  try {
+    const result = await pool.query(
+      `SELECT * FROM vehicle_metadata WHERE vehicle_id = $1`,
+      [req.params.id]
+    )
+
+    if (result.rows.length === 0) {
+      // Return default metadata structure if none exists
+      return res.json({
+        vehicleId: parseInt(req.params.id),
+        websiteId: '',
+        category: 'economy',
+        images: [],
+        features: [],
+        specifications: {},
+        seats: 5,
+        luggage: 2,
+        rating: 4.5,
+        reviews: 0,
+        description: null,
+        transmission: 'automatic',
+        isVisible: false,
+        displayOrder: 0,
+        priceByRequest: false,
+        longTermOnly: false,
+      })
+    }
+
+    res.json(toCamelCase(result.rows[0]))
+  } catch (error) {
+    console.error('Get vehicle metadata error:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// Create or update vehicle metadata
+router.put('/:id/metadata', async (req: Request, res: Response) => {
+  const vehicleId = req.params.id
+  const {
+    websiteId,
+    category,
+    images,
+    features,
+    specifications,
+    seats,
+    luggage,
+    rating,
+    reviews,
+    description,
+    transmission,
+    isVisible,
+    displayOrder,
+    priceByRequest,
+    longTermOnly,
+  } = req.body
+
+  try {
+    // Check if vehicle exists
+    const vehicle = await pool.query('SELECT id FROM vehicles WHERE id = $1', [vehicleId])
+    if (vehicle.rows.length === 0) {
+      return res.status(404).json({ error: 'Vehicle not found' })
+    }
+
+    // Check if metadata exists
+    const existing = await pool.query(
+      'SELECT id FROM vehicle_metadata WHERE vehicle_id = $1',
+      [vehicleId]
+    )
+
+    let result
+    if (existing.rows.length > 0) {
+      // Update existing
+      result = await pool.query(
+        `UPDATE vehicle_metadata SET
+          website_id = $1,
+          category = $2,
+          images = $3,
+          features = $4,
+          specifications = $5,
+          seats = $6,
+          luggage = $7,
+          rating = $8,
+          reviews = $9,
+          description = $10,
+          transmission = $11,
+          is_visible = $12,
+          display_order = $13,
+          price_by_request = $14,
+          long_term_only = $15,
+          updated_at = NOW()
+        WHERE vehicle_id = $16
+        RETURNING *`,
+        [
+          websiteId,
+          category || 'economy',
+          images || [],
+          features || [],
+          specifications || {},
+          seats || 5,
+          luggage || 2,
+          rating || 4.5,
+          reviews || 0,
+          description || null,
+          transmission || 'automatic',
+          isVisible ?? false,
+          displayOrder || 0,
+          priceByRequest ?? false,
+          longTermOnly ?? false,
+          vehicleId,
+        ]
+      )
+    } else {
+      // Generate website_id if not provided
+      const generatedWebsiteId = websiteId || `car-${vehicleId}-${Date.now()}`
+
+      // Create new
+      result = await pool.query(
+        `INSERT INTO vehicle_metadata (
+          vehicle_id, website_id, category, images, features, specifications,
+          seats, luggage, rating, reviews, description, transmission,
+          is_visible, display_order, price_by_request, long_term_only
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        RETURNING *`,
+        [
+          vehicleId,
+          generatedWebsiteId,
+          category || 'economy',
+          images || [],
+          features || [],
+          specifications || {},
+          seats || 5,
+          luggage || 2,
+          rating || 4.5,
+          reviews || 0,
+          description || null,
+          transmission || 'automatic',
+          isVisible ?? false,
+          displayOrder || 0,
+          priceByRequest ?? false,
+          longTermOnly ?? false,
+        ]
+      )
+    }
+
+    res.json(toCamelCase(result.rows[0]))
+  } catch (error: unknown) {
+    const err = error as { code?: string }
+    if (err.code === '23505') {
+      return res.status(400).json({ error: 'Website ID already exists' })
+    }
+    console.error('Update vehicle metadata error:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// Delete vehicle metadata
+router.delete('/:id/metadata', async (req: Request, res: Response) => {
+  try {
+    await pool.query(
+      'DELETE FROM vehicle_metadata WHERE vehicle_id = $1',
+      [req.params.id]
+    )
+    res.json({ success: true })
+  } catch (error) {
+    console.error('Delete vehicle metadata error:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
 export default router

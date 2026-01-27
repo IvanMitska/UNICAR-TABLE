@@ -147,6 +147,37 @@ router.get('/', async (req: Request, res: Response) => {
       })
     })
 
+    // Check pending booking requests
+    const pendingBookingsResult = await pool.query<{
+      id: number
+      reference_code: string
+      customer_first_name: string
+      customer_last_name: string
+      brand: string
+      model: string
+      created_at: string
+    }>(`
+      SELECT br.id, br.reference_code, br.customer_first_name, br.customer_last_name,
+             v.brand, v.model, br.created_at
+      FROM booking_requests br
+      LEFT JOIN vehicles v ON br.vehicle_id = v.id
+      WHERE br.status = 'pending'
+      ORDER BY br.created_at DESC
+    `)
+
+    pendingBookingsResult.rows.forEach((b) => {
+      notifications.push({
+        id: `booking-${b.id}`,
+        type: 'new_booking',
+        title: 'Новая заявка',
+        message: `${b.customer_first_name} ${b.customer_last_name} - ${b.brand} ${b.model}`,
+        relatedId: b.id,
+        relatedType: 'booking',
+        isRead: false,
+        createdAt: b.created_at,
+      })
+    })
+
     // Check upcoming maintenance
     const upcomingMaintenanceResult = await pool.query<{
       id: number

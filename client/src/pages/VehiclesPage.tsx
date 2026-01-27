@@ -4,6 +4,7 @@ import type { Vehicle, VehicleStatus, VehicleFormData } from '@/types'
 import clsx from 'clsx'
 import SelectDropdown from '@/components/ui/SelectDropdown'
 import DatePicker from '@/components/ui/DatePicker'
+import VehicleMetadataEditor from '@/components/vehicles/VehicleMetadataEditor'
 
 const statusLabels: Record<VehicleStatus, string> = {
   available: 'Свободен',
@@ -34,6 +35,7 @@ export default function VehiclesPage() {
   const [statusFilter, setStatusFilter] = useState<VehicleStatus | 'all'>('all')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null)
+  const [metadataVehicle, setMetadataVehicle] = useState<Vehicle | null>(null)
 
   useEffect(() => {
     fetchVehicles()
@@ -234,6 +236,7 @@ export default function VehiclesPage() {
                 setIsModalOpen(true)
               }}
               onDelete={() => handleDelete(vehicle.id)}
+              onOpenMetadata={() => setMetadataVehicle(vehicle)}
             />
           ))}
         </div>
@@ -250,6 +253,17 @@ export default function VehiclesPage() {
           onSave={handleSave}
         />
       )}
+
+      {/* Metadata Editor */}
+      {metadataVehicle && (
+        <VehicleMetadataEditor
+          vehicle={metadataVehicle}
+          onClose={() => setMetadataVehicle(null)}
+          onSave={() => {
+            // Optional: could refresh or show a success message
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -259,11 +273,13 @@ function VehicleCard({
   index,
   onEdit,
   onDelete,
+  onOpenMetadata,
 }: {
   vehicle: Vehicle
   index: number
   onEdit: () => void
   onDelete: () => void
+  onOpenMetadata: () => void
 }) {
   return (
     <div
@@ -337,6 +353,13 @@ function VehicleCard({
         >
           <EditIcon className="w-4 h-4 mr-1.5" />
           Изменить
+        </button>
+        <button
+          onClick={onOpenMetadata}
+          className="btn btn-ghost text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 px-3"
+          title="Настройки для сайта"
+        >
+          <GlobeIcon className="w-4 h-4" />
         </button>
         <button
           onClick={onDelete}
@@ -764,6 +787,14 @@ function CloseIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  )
+}
+
+function GlobeIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
     </svg>
   )
 }
