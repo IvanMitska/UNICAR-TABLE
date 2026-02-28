@@ -9,6 +9,51 @@ import {
 const router = Router()
 
 /**
+ * GET /api/public/debug
+ * Debug endpoint to check database connection and data
+ */
+router.get('/debug', async (_req: Request, res: Response) => {
+  try {
+    // Check vehicles count
+    const vehiclesCount = await pool.query('SELECT COUNT(*) as count FROM vehicles WHERE status != $1', ['archived'])
+
+    // Check metadata count
+    const metadataCount = await pool.query('SELECT COUNT(*) as count FROM vehicle_metadata')
+
+    // Check linked vehicles (have both vehicle and metadata)
+    const linkedCount = await pool.query(`
+      SELECT COUNT(*) as count
+      FROM vehicles v
+      JOIN vehicle_metadata m ON v.id = m.vehicle_id
+      WHERE v.status != 'archived'
+    `)
+
+    // Sample of metadata with websiteId
+    const sampleMetadata = await pool.query(`
+      SELECT m.id, m.vehicle_id, m.website_id, m.category, v.id as actual_vehicle_id, v.brand, v.model
+      FROM vehicle_metadata m
+      LEFT JOIN vehicles v ON m.vehicle_id = v.id
+      ORDER BY m.id
+      LIMIT 10
+    `)
+
+    res.json({
+      status: 'ok',
+      database: 'connected',
+      counts: {
+        vehicles: parseInt(vehiclesCount.rows[0].count),
+        metadata: parseInt(metadataCount.rows[0].count),
+        linked: parseInt(linkedCount.rows[0].count)
+      },
+      sampleData: sampleMetadata.rows
+    })
+  } catch (error) {
+    console.error('Debug error:', error)
+    res.status(500).json({ error: 'Database error', details: String(error) })
+  }
+})
+
+/**
  * Simple availability response
  */
 interface VehicleAvailability {

@@ -20,7 +20,7 @@ if (!connectionString) {
 
 export const pool = new Pool({
   connectionString,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  ssl: { rejectUnauthorized: false },
 })
 
 const schema = `
@@ -199,9 +199,55 @@ export async function initDatabase() {
     `, [hashedPin])
     console.log('PIN set to: 1124')
 
+    // Update vehicle categories
+    await updateVehicleCategories(client)
+
     console.log('Database initialized')
   } finally {
     client.release()
+  }
+}
+
+// Update vehicle metadata categories based on websiteId
+async function updateVehicleCategories(client: pg.PoolClient) {
+  const premiumIds = [
+    'mustang-yellow-2021', 'mustang-yellow-2016', 'mustang-blue-2020', 'mustang-white-2020',
+    'bmw-430i-black', 'bmw-430i-orange', 'bmw-420i-blue',
+    'mercedes-c300-chameleon', 'mercedes-s500e', 'mercedes-e-class-2019', 'mercedes-vito-maybach'
+  ]
+
+  const suvIds = [
+    'raptor-2023', 'raptor-2024', 'everest-2023', 'everest-2024',
+    'fortuner', 'c-hr-1', 'c-hr-2', 'bmw-x5-2020',
+    'mg-zs-blue', 'mg-zs-black-1', 'mg-zs-black-2'
+  ]
+
+  const economyIds = [
+    'juke-1', 'juke-2', 'honda-jazz', 'mazda-2-1', 'mirage',
+    'mercedes-c350e-white-1', 'mercedes-c350e-white-2', 'mercedes-c350e-white-3', 'mercedes-c350e-white-4',
+    'mercedes-c350e-black', 'mercedes-e350', 'mercedes-e-class-green'
+  ]
+
+  try {
+    const premiumResult = await client.query(
+      'UPDATE vehicle_metadata SET category = $1 WHERE website_id = ANY($2)',
+      ['premium', premiumIds]
+    )
+    const suvResult = await client.query(
+      'UPDATE vehicle_metadata SET category = $1 WHERE website_id = ANY($2)',
+      ['suv', suvIds]
+    )
+    const economyResult = await client.query(
+      'UPDATE vehicle_metadata SET category = $1 WHERE website_id = ANY($2)',
+      ['economy', economyIds]
+    )
+
+    const total = (premiumResult.rowCount || 0) + (suvResult.rowCount || 0) + (economyResult.rowCount || 0)
+    if (total > 0) {
+      console.log(`Updated ${total} vehicle categories`)
+    }
+  } catch (error) {
+    console.error('Error updating categories:', error)
   }
 }
 
@@ -223,4 +269,30 @@ export function toSnakeCase(obj: Record<string, unknown>): Record<string, unknow
     result[snakeKey] = obj[key]
   }
   return result
+}
+
+// Check and mark overdue rentals
+export async function checkOverdueRentals() {
+  const client = await pool.connect()
+  try {
+    // Mark active rentals as overdue if planned_end_date has passed
+    const result = await client.query(`
+      UPDATE rentals
+      SET status = 'overdue'
+      WHERE status = 'active'
+        AND planned_end_date < NOW()
+      RETURNING id, vehicle_id
+    `)
+
+    if (result.rows.length > 0) {
+      console.log(`Marked ${result.rows.length} rental(s) as overdue`)
+    }
+
+    return result.rows.length
+  } catch (error) {
+    console.error('Check overdue rentals error:', error)
+    return 0
+  } finally {
+    client.release()
+  }
 }
