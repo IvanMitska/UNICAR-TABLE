@@ -215,28 +215,40 @@ router.post('/bookings', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Start date cannot be in the past' })
     }
 
-    // Check if vehicle exists
-    const vehicleResult = await pool.query(
-      'SELECT id, status FROM vehicles WHERE id = $1 AND status != $2',
-      [data.vehicleId, 'archived']
-    )
+    // Check if vehicle exists - search by websiteId first, then by numeric id
+    let vehicleResult = await pool.query(`
+      SELECT v.id, v.status
+      FROM vehicles v
+      JOIN vehicle_metadata m ON v.id = m.vehicle_id
+      WHERE m.website_id = $1 AND v.status != 'archived'
+    `, [data.vehicleId])
+
+    // If not found by websiteId, try numeric id
+    if (vehicleResult.rows.length === 0) {
+      vehicleResult = await pool.query(
+        'SELECT id, status FROM vehicles WHERE id::text = $1 AND status != $2',
+        [String(data.vehicleId), 'archived']
+      )
+    }
 
     if (vehicleResult.rows.length === 0) {
       return res.status(404).json({ error: 'Vehicle not found' })
     }
+
+    const vehicleId = vehicleResult.rows[0].id
 
     // Check availability
     const rentalsResult = await pool.query(`
       SELECT start_date, planned_end_date
       FROM rentals
       WHERE vehicle_id = $1 AND status = 'active'
-    `, [data.vehicleId])
+    `, [vehicleId])
 
     const bookingsResult = await pool.query(`
       SELECT start_date, end_date as planned_end_date
       FROM booking_requests
       WHERE vehicle_id = $1 AND status IN ('pending', 'confirmed')
-    `, [data.vehicleId])
+    `, [vehicleId])
 
     const existingBookings = [
       ...rentalsResult.rows,
@@ -280,7 +292,7 @@ router.post('/bookings', async (req: Request, res: Response) => {
       RETURNING *
     `, [
       referenceCode,
-      data.vehicleId,
+      vehicleId,
       data.customerFirstName,
       data.customerLastName,
       data.customerEmail,

@@ -3,7 +3,7 @@
  */
 
 export interface BookingRequestInput {
-  vehicleId: number
+  vehicleId: string | number
   customerFirstName: string
   customerLastName: string
   customerEmail: string
