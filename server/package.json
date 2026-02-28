@@ -6,7 +6,11 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "seed:vehicles": "tsx src/db/seed-vehicles.ts",
+    "reset:vehicles": "tsx src/db/reset-vehicles.ts",
+    "link:vehicles": "tsx src/db/link-vehicles.ts",
+    "cleanup:duplicates": "tsx src/db/cleanup-duplicates.ts"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

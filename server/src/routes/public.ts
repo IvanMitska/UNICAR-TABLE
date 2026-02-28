@@ -1,197 +1,60 @@
 import { Router, Request, Response } from 'express'
-import { pool, toCamelCase } from '../db/database.js'
+import { pool } from '../db/database.js'
 import {
-  transformToWebsiteCar,
   generateReferenceCode,
   isVehicleAvailableForDates,
-  WebsiteCar,
   BookingRequestInput
 } from '../utils/transformers.js'
 
 const router = Router()
 
 /**
- * GET /api/public/cars
- * Get all visible cars for website display
+ * Simple availability response
  */
-router.get('/cars', async (_req: Request, res: Response) => {
+interface VehicleAvailability {
+  vehicleId: number
+  websiteId: string | null
+  available: boolean
+}
+
+/**
+ * GET /api/public/availability
+ * Get availability status for all vehicles
+ * Returns only IDs and availability status - no prices, images, or details
+ */
+router.get('/availability', async (_req: Request, res: Response) => {
   try {
     const result = await pool.query(`
       SELECT
-        v.*,
-        m.id as meta_id,
-        m.website_id,
-        m.category,
-        m.images,
-        m.features,
-        m.specifications,
-        m.seats,
-        m.luggage,
-        m.rating,
-        m.reviews,
-        m.description as meta_description,
-        m.transmission,
-        m.is_visible,
-        m.display_order,
-        m.price_by_request,
-        m.long_term_only
+        v.id,
+        v.status,
+        m.website_id
       FROM vehicles v
       LEFT JOIN vehicle_metadata m ON v.id = m.vehicle_id
       WHERE v.status != 'archived'
         AND (m.is_visible IS NULL OR m.is_visible = true)
-      ORDER BY COALESCE(m.display_order, 999), v.brand, v.model
+      ORDER BY v.id
     `)
 
-    const cars: WebsiteCar[] = result.rows.map(row => {
-      const vehicle = {
-        id: row.id,
-        brand: row.brand,
-        model: row.model,
-        license_plate: row.license_plate,
-        vin: row.vin,
-        year: row.year,
-        color: row.color,
-        fuel_type: row.fuel_type,
-        mileage: row.mileage,
-        status: row.status,
-        rate_daily: row.rate_daily,
-        rate_3days: row.rate_3days,
-        rate_7days: row.rate_7days,
-        rate_monthly: row.rate_monthly,
-        insurance_expiry: row.insurance_expiry,
-        inspection_expiry: row.inspection_expiry,
-        photo_url: row.photo_url,
-        notes: row.notes,
-        created_at: row.created_at,
-        updated_at: row.updated_at
-      }
+    const availability: VehicleAvailability[] = result.rows.map(row => ({
+      vehicleId: row.id,
+      websiteId: row.website_id || null,
+      available: row.status === 'available'
+    }))
 
-      const metadata = row.meta_id ? {
-        id: row.meta_id,
-        vehicle_id: row.id,
-        website_id: row.website_id,
-        category: row.category,
-        images: row.images || [],
-        features: row.features || [],
-        specifications: row.specifications || {},
-        seats: row.seats,
-        luggage: row.luggage,
-        rating: row.rating,
-        reviews: row.reviews,
-        description: row.meta_description,
-        transmission: row.transmission,
-        is_visible: row.is_visible,
-        display_order: row.display_order,
-        price_by_request: row.price_by_request,
-        long_term_only: row.long_term_only
-      } : null
-
-      return transformToWebsiteCar(vehicle, metadata)
-    })
-
-    res.json(cars)
+    res.json(availability)
   } catch (error) {
-    console.error('Error fetching cars:', error)
-    res.status(500).json({ error: 'Failed to fetch cars' })
+    console.error('Error fetching availability:', error)
+    res.status(500).json({ error: 'Failed to fetch availability' })
   }
 })
 
 /**
- * GET /api/public/cars/:id
- * Get single car by website_id or vehicle id
+ * GET /api/public/availability/check
+ * Check which vehicles are available for specific date range
+ * Query params: from, to (dates in YYYY-MM-DD format)
  */
-router.get('/cars/:id', async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params
-
-    // Try to find by website_id first, then by vehicle id
-    const result = await pool.query(`
-      SELECT
-        v.*,
-        m.id as meta_id,
-        m.website_id,
-        m.category,
-        m.images,
-        m.features,
-        m.specifications,
-        m.seats,
-        m.luggage,
-        m.rating,
-        m.reviews,
-        m.description as meta_description,
-        m.transmission,
-        m.is_visible,
-        m.display_order,
-        m.price_by_request,
-        m.long_term_only
-      FROM vehicles v
-      LEFT JOIN vehicle_metadata m ON v.id = m.vehicle_id
-      WHERE (m.website_id = $1 OR v.id::text = $1)
-        AND v.status != 'archived'
-        AND (m.is_visible IS NULL OR m.is_visible = true)
-      LIMIT 1
-    `, [id])
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Car not found' })
-    }
-
-    const row = result.rows[0]
-    const vehicle = {
-      id: row.id,
-      brand: row.brand,
-      model: row.model,
-      license_plate: row.license_plate,
-      vin: row.vin,
-      year: row.year,
-      color: row.color,
-      fuel_type: row.fuel_type,
-      mileage: row.mileage,
-      status: row.status,
-      rate_daily: row.rate_daily,
-      rate_3days: row.rate_3days,
-      rate_7days: row.rate_7days,
-      rate_monthly: row.rate_monthly,
-      insurance_expiry: row.insurance_expiry,
-      inspection_expiry: row.inspection_expiry,
-      photo_url: row.photo_url,
-      notes: row.notes,
-      created_at: row.created_at,
-      updated_at: row.updated_at
-    }
-
-    const metadata = row.meta_id ? {
-      id: row.meta_id,
-      vehicle_id: row.id,
-      website_id: row.website_id,
-      category: row.category,
-      images: row.images || [],
-      features: row.features || [],
-      specifications: row.specifications || {},
-      seats: row.seats,
-      luggage: row.luggage,
-      rating: row.rating,
-      reviews: row.reviews,
-      description: row.meta_description,
-      transmission: row.transmission,
-      is_visible: row.is_visible,
-      display_order: row.display_order,
-      price_by_request: row.price_by_request,
-      long_term_only: row.long_term_only
-    } : null
-
-    res.json(transformToWebsiteCar(vehicle, metadata))
-  } catch (error) {
-    console.error('Error fetching car:', error)
-    res.status(500).json({ error: 'Failed to fetch car' })
-  }
-})
-
-/**
- * GET /api/public/cars/available
- * Get cars available for specific date range
- */
-router.get('/cars/available', async (req: Request, res: Response) => {
+router.get('/availability/check', async (req: Request, res: Response) => {
   try {
     const { from, to } = req.query
 
@@ -203,39 +66,24 @@ router.get('/cars/available', async (req: Request, res: Response) => {
     const endDate = new Date(to as string)
 
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-      return res.status(400).json({ error: 'Invalid date format' })
+      return res.status(400).json({ error: 'Invalid date format. Use YYYY-MM-DD' })
     }
 
     if (startDate >= endDate) {
       return res.status(400).json({ error: '"from" date must be before "to" date' })
     }
 
-    // Get all vehicles with their rentals
+    // Get all visible vehicles
     const vehiclesResult = await pool.query(`
       SELECT
-        v.*,
-        m.id as meta_id,
-        m.website_id,
-        m.category,
-        m.images,
-        m.features,
-        m.specifications,
-        m.seats,
-        m.luggage,
-        m.rating,
-        m.reviews,
-        m.description as meta_description,
-        m.transmission,
-        m.is_visible,
-        m.display_order,
-        m.price_by_request,
-        m.long_term_only
+        v.id,
+        v.status,
+        m.website_id
       FROM vehicles v
       LEFT JOIN vehicle_metadata m ON v.id = m.vehicle_id
       WHERE v.status IN ('available', 'rented')
-        AND v.status != 'archived'
         AND (m.is_visible IS NULL OR m.is_visible = true)
-      ORDER BY COALESCE(m.display_order, 999), v.brand, v.model
+      ORDER BY v.id
     `)
 
     // Get all active rentals
@@ -275,70 +123,64 @@ router.get('/cars/available', async (req: Request, res: Response) => {
       })
     }
 
-    // Filter available vehicles
-    const availableCars: WebsiteCar[] = []
-
-    for (const row of vehiclesResult.rows) {
+    // Check availability for each vehicle
+    const availability = vehiclesResult.rows.map(row => {
       const vehicleRentals = rentalsByVehicle[row.id] || []
-      const isAvailable = isVehicleAvailableForDates(
+      const availableForDates = isVehicleAvailableForDates(
         row.status,
         vehicleRentals,
         startDate,
         endDate
       )
 
-      if (isAvailable) {
-        const vehicle = {
-          id: row.id,
-          brand: row.brand,
-          model: row.model,
-          license_plate: row.license_plate,
-          vin: row.vin,
-          year: row.year,
-          color: row.color,
-          fuel_type: row.fuel_type,
-          mileage: row.mileage,
-          status: row.status,
-          rate_daily: row.rate_daily,
-          rate_3days: row.rate_3days,
-          rate_7days: row.rate_7days,
-          rate_monthly: row.rate_monthly,
-          insurance_expiry: row.insurance_expiry,
-          inspection_expiry: row.inspection_expiry,
-          photo_url: row.photo_url,
-          notes: row.notes,
-          created_at: row.created_at,
-          updated_at: row.updated_at
-        }
-
-        const metadata = row.meta_id ? {
-          id: row.meta_id,
-          vehicle_id: row.id,
-          website_id: row.website_id,
-          category: row.category,
-          images: row.images || [],
-          features: row.features || [],
-          specifications: row.specifications || {},
-          seats: row.seats,
-          luggage: row.luggage,
-          rating: row.rating,
-          reviews: row.reviews,
-          description: row.meta_description,
-          transmission: row.transmission,
-          is_visible: row.is_visible,
-          display_order: row.display_order,
-          price_by_request: row.price_by_request,
-          long_term_only: row.long_term_only
-        } : null
-
-        availableCars.push(transformToWebsiteCar(vehicle, metadata))
+      return {
+        vehicleId: row.id,
+        websiteId: row.website_id || null,
+        availableForDates
       }
-    }
+    })
 
-    res.json(availableCars)
+    res.json(availability)
   } catch (error) {
     console.error('Error checking availability:', error)
     res.status(500).json({ error: 'Failed to check availability' })
+  }
+})
+
+/**
+ * GET /api/public/availability/:id
+ * Get availability status for a single vehicle by websiteId or vehicleId
+ */
+router.get('/availability/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params
+
+    const result = await pool.query(`
+      SELECT
+        v.id,
+        v.status,
+        m.website_id
+      FROM vehicles v
+      LEFT JOIN vehicle_metadata m ON v.id = m.vehicle_id
+      WHERE (m.website_id = $1 OR v.id::text = $1)
+        AND v.status != 'archived'
+        AND (m.is_visible IS NULL OR m.is_visible = true)
+      LIMIT 1
+    `, [id])
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Vehicle not found' })
+    }
+
+    const row = result.rows[0]
+    res.json({
+      vehicleId: row.id,
+      websiteId: row.website_id || null,
+      available: row.status === 'available'
+    })
+  } catch (error) {
+    console.error('Error fetching vehicle availability:', error)
+    res.status(500).json({ error: 'Failed to fetch availability' })
   }
 })
 
@@ -481,13 +323,12 @@ router.get('/bookings/:ref/status', async (req: Request, res: Response) => {
         br.end_date,
         br.pickup_location,
         br.return_location,
-        br.total_price,
         br.created_at,
-        v.brand,
-        v.model,
-        v.year
+        v.id as vehicle_id,
+        m.website_id
       FROM booking_requests br
       JOIN vehicles v ON br.vehicle_id = v.id
+      LEFT JOIN vehicle_metadata m ON v.id = m.vehicle_id
       WHERE br.reference_code = $1
     `, [ref])
 
@@ -499,16 +340,12 @@ router.get('/bookings/:ref/status', async (req: Request, res: Response) => {
     res.json({
       referenceCode: row.reference_code,
       status: row.status,
-      vehicle: {
-        brand: row.brand,
-        model: row.model,
-        year: row.year
-      },
+      vehicleId: row.vehicle_id,
+      websiteId: row.website_id || null,
       startDate: row.start_date,
       endDate: row.end_date,
       pickupLocation: row.pickup_location,
       returnLocation: row.return_location,
-      totalPrice: parseFloat(row.total_price),
       createdAt: row.created_at
     })
   } catch (error) {
