@@ -100,7 +100,7 @@ export default function NotificationsDropdown({ onCountChange }: NotificationsDr
       case 'license_expiry':
         return 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400'
       case 'maintenance_due':
-        return 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+        return 'bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-400'
       default:
         return 'bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-400'
     }

@@ -4,7 +4,7 @@ import cookieParser from 'cookie-parser'
 import { rateLimit } from 'express-rate-limit'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { initDatabase } from './db/database.js'
+import { initDatabase, checkOverdueRentals } from './db/database.js'
 import authRoutes from './routes/auth.js'
 import vehiclesRoutes from './routes/vehicles.js'
 import clientsRoutes from './routes/clients.js'
@@ -16,6 +16,7 @@ import notificationsRoutes from './routes/notifications.js'
 import backupRoutes from './routes/backup.js'
 import publicRoutes from './routes/public.js'
 import bookingRequestsRoutes from './routes/booking-requests.js'
+import usersRoutes from './routes/users.js'
 import { authMiddleware } from './middleware/auth.js'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -85,6 +86,7 @@ app.use('/api/reports', authMiddleware, reportsRoutes)
 app.use('/api/notifications', authMiddleware, notificationsRoutes)
 app.use('/api/backup', authMiddleware, backupRoutes)
 app.use('/api/booking-requests', authMiddleware, bookingRequestsRoutes)
+app.use('/api/users', usersRoutes)  // Has its own auth middleware (admin only)
 
 // Health check
 app.get('/api/health', (_, res) => {
@@ -97,40 +99,42 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   res.status(500).json({ error: 'Internal server error' })
 })
 
-// Serve static files in production
-if (isProduction) {
-  const clientPath = path.join(__dirname, '../../client/dist')
+// Serve static files (production and development with built client)
+const clientPath = path.join(__dirname, '../../client/dist')
 
-  // Serve static assets with cache
-  app.use(express.static(clientPath, {
-    maxAge: '1d',
-    setHeaders: (res, filePath) => {
-      // Disable cache for HTML files
-      if (filePath.endsWith('.html')) {
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
-      }
+// Serve static assets
+app.use(express.static(clientPath, {
+  maxAge: isProduction ? '1d' : '0',
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
     }
-  }))
+  }
+}))
 
-  // Handle client-side routing - always serve fresh index.html
-  app.get('*', (_req, res) => {
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
-    res.sendFile(path.join(clientPath, 'index.html'))
-  })
-}
+// Handle client-side routing - serve index.html for all non-API routes
+app.get('*', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+  res.sendFile(path.join(clientPath, 'index.html'))
+})
 
 // Initialize database and start server
 async function start() {
   try {
     await initDatabase()
 
+    // Check overdue rentals on startup
+    await checkOverdueRentals()
+
+    // Check overdue rentals every hour
+    setInterval(async () => {
+      await checkOverdueRentals()
+    }, 60 * 60 * 1000)
+
     app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`)
       console.log(`Environment: ${isProduction ? 'production' : 'development'}`)
-      if (isProduction) {
-        const clientPath = path.join(__dirname, '../../client/dist')
-        console.log(`Serving static files from: ${clientPath}`)
-      }
+      console.log(`Serving static files from: ${clientPath}`)
     })
   } catch (error) {
     console.error('Failed to start server:', error)

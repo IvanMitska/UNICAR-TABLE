@@ -124,9 +124,22 @@ CREATE TABLE IF NOT EXISTS expenses (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+-- Users table
+CREATE TABLE IF NOT EXISTS users (
+  id SERIAL PRIMARY KEY,
+  username VARCHAR(50) UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  full_name VARCHAR(100) NOT NULL,
+  role VARCHAR(20) NOT NULL DEFAULT 'agent',
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT NOW(),
+  last_login TIMESTAMP
+);
+
 -- Sessions table
 CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id),
   created_at TIMESTAMP DEFAULT NOW(),
   expires_at TIMESTAMP NOT NULL
 );
@@ -184,6 +197,8 @@ CREATE INDEX IF NOT EXISTS idx_vehicle_metadata_vehicle_id ON vehicle_metadata(v
 CREATE INDEX IF NOT EXISTS idx_vehicle_metadata_website_id ON vehicle_metadata(website_id);
 CREATE INDEX IF NOT EXISTS idx_booking_requests_status ON booking_requests(status);
 CREATE INDEX IF NOT EXISTS idx_booking_requests_reference_code ON booking_requests(reference_code);
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 `
 
 export async function initDatabase() {
@@ -191,13 +206,22 @@ export async function initDatabase() {
   try {
     await client.query(schema)
 
-    // Set/reset PIN to 1124
-    const hashedPin = bcrypt.hashSync('1124', 10)
-    await client.query(`
-      INSERT INTO settings (key, value) VALUES ('pin', $1)
-      ON CONFLICT (key) DO UPDATE SET value = $1
-    `, [hashedPin])
-    console.log('PIN set to: 1124')
+    // Add created_by columns if they don't exist
+    await addCreatedByColumns(client)
+
+    // Create admin user if not exists
+    const adminCheck = await client.query(
+      `SELECT id FROM users WHERE username = 'admin'`
+    )
+
+    if (adminCheck.rows.length === 0) {
+      const hashedPassword = bcrypt.hashSync('admin1124', 10)
+      await client.query(`
+        INSERT INTO users (username, password_hash, full_name, role)
+        VALUES ('admin', $1, 'Администратор', 'admin')
+      `, [hashedPassword])
+      console.log('Admin user created (login: admin, password: admin1124)')
+    }
 
     // Update vehicle categories
     await updateVehicleCategories(client)
@@ -206,6 +230,43 @@ export async function initDatabase() {
   } finally {
     client.release()
   }
+}
+
+// Add created_by columns to track user actions
+async function addCreatedByColumns(client: pg.PoolClient) {
+  const tables = ['rentals', 'expenses', 'maintenance']
+
+  for (const table of tables) {
+    const check = await client.query(`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = $1 AND column_name = 'created_by'
+    `, [table])
+
+    if (check.rows.length === 0) {
+      await client.query(`
+        ALTER TABLE ${table} ADD COLUMN created_by INTEGER REFERENCES users(id)
+      `)
+      console.log(`Added created_by to ${table}`)
+    }
+  }
+
+  // Also ensure sessions has user_id
+  const sessionCheck = await client.query(`
+    SELECT column_name FROM information_schema.columns
+    WHERE table_name = 'sessions' AND column_name = 'user_id'
+  `)
+
+  if (sessionCheck.rows.length === 0) {
+    await client.query(`
+      ALTER TABLE sessions ADD COLUMN user_id INTEGER REFERENCES users(id)
+    `)
+    console.log('Added user_id to sessions')
+  }
+
+  // Create index on sessions.user_id after ensuring column exists
+  await client.query(`
+    CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)
+  `)
 }
 
 // Update vehicle metadata categories based on websiteId

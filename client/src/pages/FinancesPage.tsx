@@ -141,24 +141,38 @@ export default function FinancesPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      <div className="flex items-center justify-center h-[60vh]">
+        <div className="relative">
+          <div className="w-12 h-12 rounded-full border-[3px] border-gray-200 dark:border-zinc-700" />
+          <div className="absolute inset-0 w-12 h-12 rounded-full border-[3px] border-transparent border-t-gray-900 dark:border-t-white animate-spin" />
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Финансы</h1>
-        <button onClick={() => setIsModalOpen(true)} className="btn btn-primary">
-          <PlusIcon className="w-5 h-5 mr-2" />
-          Добавить расход
-        </button>
-      </div>
+    <div className="flex flex-col gap-8 max-w-7xl mx-auto">
+      {/* Header */}
+      <header className="animate-slide-up">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Аналитика</p>
+            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white tracking-tight">
+              Финансы
+            </h1>
+          </div>
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-semibold hover:bg-gray-800 dark:hover:bg-gray-100 transition-all active:scale-[0.98] shadow-lg shadow-gray-900/10 dark:shadow-white/10"
+          >
+            <PlusIcon className="w-4 h-4" />
+            Добавить расход
+          </button>
+        </div>
+      </header>
 
       {/* Date range filter */}
-      <div className="flex flex-wrap items-end gap-4">
+      <div className="flex flex-wrap items-end gap-4 animate-slide-up" style={{ animationDelay: '50ms' }}>
         <DatePicker
           label="От"
           value={dateRange.from}
@@ -176,32 +190,29 @@ export default function FinancesPage() {
 
       {/* Stats cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="flex flex-col items-center justify-center py-5 px-4 rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm">
-          <span className="text-gray-400 dark:text-gray-500 mb-2">
-            <ArrowUpIcon className="w-5 h-5" />
-          </span>
-          <p className="text-2xl font-semibold text-gray-900 dark:text-white tracking-tight">
-            {formatCurrency(stats.totalIncome)}
-          </p>
-          <p className="text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-1">Доход</p>
+        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '100ms' }}>
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/50 to-transparent dark:from-emerald-900/10 dark:to-transparent pointer-events-none" />
+          <div className="relative">
+            <span className="text-emerald-500 dark:text-emerald-400 mb-4 block"><ArrowUpIcon className="w-5 h-5" /></span>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{formatCurrency(stats.totalIncome)}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Доход</p>
+          </div>
         </div>
-        <div className="flex flex-col items-center justify-center py-5 px-4 rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm">
-          <span className="text-gray-400 dark:text-gray-500 mb-2">
-            <ArrowDownIcon className="w-5 h-5" />
-          </span>
-          <p className="text-2xl font-semibold text-gray-900 dark:text-white tracking-tight">
-            {formatCurrency(stats.totalExpenses)}
-          </p>
-          <p className="text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-1">Расходы</p>
+        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '150ms' }}>
+          <div className="absolute inset-0 bg-gradient-to-br from-red-50/50 to-transparent dark:from-red-900/10 dark:to-transparent pointer-events-none" />
+          <div className="relative">
+            <span className="text-red-500 dark:text-red-400 mb-4 block"><ArrowDownIcon className="w-5 h-5" /></span>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{formatCurrency(stats.totalExpenses)}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Расходы</p>
+          </div>
         </div>
-        <div className="flex flex-col items-center justify-center py-5 px-4 rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm">
-          <span className="text-gray-400 dark:text-gray-500 mb-2">
-            <WalletIcon className="w-5 h-5" />
-          </span>
-          <p className="text-2xl font-semibold text-gray-900 dark:text-white tracking-tight">
-            {formatCurrency(stats.profit)}
-          </p>
-          <p className="text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-1">Прибыль</p>
+        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '200ms' }}>
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-50/50 to-transparent dark:from-zinc-800/10 dark:to-transparent pointer-events-none" />
+          <div className="relative">
+            <span className="text-gray-500 dark:text-gray-400 mb-4 block"><WalletIcon className="w-5 h-5" /></span>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{formatCurrency(stats.profit)}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Прибыль</p>
+          </div>
         </div>
       </div>
 
@@ -249,8 +260,8 @@ export default function FinancesPage() {
         {/* Top Vehicles by Revenue */}
         <div className="rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm">
           <div className="p-4 border-b border-gray-100 dark:border-zinc-800 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-              <ChartBarIcon className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-zinc-800 flex items-center justify-center">
+              <ChartBarIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Топ машин по доходу</h2>
@@ -278,7 +289,7 @@ export default function FinancesPage() {
                   </div>
                   <div className="h-2 bg-gray-100 dark:bg-zinc-800 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-500"
+                      className="h-full bg-gradient-to-r from-gray-500 to-gray-600 dark:from-zinc-500 dark:to-zinc-400 rounded-full transition-all duration-500"
                       style={{ width: `${percentage}%` }}
                     />
                   </div>
@@ -316,11 +327,11 @@ export default function FinancesPage() {
             </p>
             <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">В аренде</p>
           </div>
-          <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+          <div className="p-4 rounded-xl bg-gray-50 dark:bg-zinc-800/30 border border-gray-200 dark:border-zinc-700">
+            <p className="text-2xl font-bold text-gray-600 dark:text-gray-300">
               {vehicles.filter(v => v.status === 'available').length}
             </p>
-            <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Свободно</p>
+            <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">Свободно</p>
           </div>
           <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
             <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">

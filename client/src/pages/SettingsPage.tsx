@@ -66,11 +66,18 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Настройки</h1>
+    <div className="flex flex-col gap-8 max-w-2xl mx-auto">
+      {/* Header */}
+      <header className="animate-slide-up">
+        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Система</p>
+        <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white tracking-tight">
+          Настройки
+        </h1>
+      </header>
 
       {/* Theme */}
-      <div className="rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm p-6">
+      <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '50ms' }}>
+        <div className="absolute inset-0 bg-gradient-to-br from-gray-50/50 to-transparent dark:from-zinc-800/20 dark:to-transparent pointer-events-none" />
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Внешний вид</h2>
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -104,7 +111,8 @@ export default function SettingsPage() {
       </div>
 
       {/* Change PIN */}
-      <div className="rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm p-6">
+      <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '100ms' }}>
+        <div className="absolute inset-0 bg-gradient-to-br from-gray-50/50 to-transparent dark:from-zinc-800/20 dark:to-transparent pointer-events-none" />
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Безопасность</h2>
         <form onSubmit={handlePinChange} className="space-y-4">
           <div>
@@ -166,7 +174,8 @@ export default function SettingsPage() {
       </div>
 
       {/* Backup */}
-      <div className="rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm p-6">
+      <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '150ms' }}>
+        <div className="absolute inset-0 bg-gradient-to-br from-gray-50/50 to-transparent dark:from-zinc-800/20 dark:to-transparent pointer-events-none" />
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Данные</h2>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
           Скачайте резервную копию базы данных. Храните файл в надёжном месте.
@@ -178,7 +187,8 @@ export default function SettingsPage() {
       </div>
 
       {/* About */}
-      <div className="rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm p-6">
+      <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '200ms' }}>
+        <div className="absolute inset-0 bg-gradient-to-br from-gray-50/50 to-transparent dark:from-zinc-800/20 dark:to-transparent pointer-events-none" />
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">О программе</h2>
         <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
           <p><strong>UNICAR</strong> — Система учёта аренды ТС</p>

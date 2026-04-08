@@ -28,52 +28,58 @@ router.get('/summary', async (req: Request, res: Response) => {
   const endDate = to || new Date().toISOString().split('T')[0]
 
   try {
-    // Active rentals count
-    const activeRentalsResult = await pool.query<CountResult>(`
-      SELECT COUNT(*) as count FROM rentals WHERE status = 'active'
-    `)
+    // Run all queries in parallel for better performance
+    const [
+      activeRentalsResult,
+      availableVehiclesResult,
+      maintenanceVehiclesResult,
+      incomeResult,
+      expensesResult,
+      maintenanceCostsResult,
+      nextReturnResult,
+    ] = await Promise.all([
+      // Active rentals count
+      pool.query<CountResult>(`SELECT COUNT(*) as count FROM rentals WHERE status = 'active'`),
 
-    // Available vehicles count
-    const availableVehiclesResult = await pool.query<CountResult>(`
-      SELECT COUNT(*) as count FROM vehicles WHERE status = 'available'
-    `)
+      // Available vehicles count
+      pool.query<CountResult>(`SELECT COUNT(*) as count FROM vehicles WHERE status = 'available'`),
 
-    // Total income for period (from active and completed rentals)
-    const incomeResult = await pool.query<SumResult>(`
-      SELECT COALESCE(SUM(total_amount), 0) as total
-      FROM rentals
-      WHERE (
-        (status = 'completed' AND DATE(actual_end_date) BETWEEN $1 AND $2)
-        OR (status = 'active' AND DATE(start_date) BETWEEN $1 AND $2)
-      )
-    `, [startDate, endDate])
+      // Vehicles in maintenance
+      pool.query<CountResult>(`SELECT COUNT(*) as count FROM vehicles WHERE status = 'maintenance'`),
 
-    // Total expenses for period
-    const expensesResult = await pool.query<SumResult>(`
-      SELECT COALESCE(SUM(amount), 0) as total
-      FROM expenses
-      WHERE date BETWEEN $1 AND $2
-    `, [startDate, endDate])
+      // Total income for period
+      pool.query<SumResult>(`
+        SELECT COALESCE(SUM(total_amount), 0) as total
+        FROM rentals
+        WHERE (
+          (status = 'completed' AND DATE(actual_end_date) BETWEEN $1 AND $2)
+          OR (status IN ('active', 'overdue') AND DATE(start_date) <= $2 AND DATE(planned_end_date) >= $1)
+        )
+      `, [startDate, endDate]),
 
-    // Maintenance costs for period
-    const maintenanceCostsResult = await pool.query<SumResult>(`
-      SELECT COALESCE(SUM(cost), 0) as total
-      FROM maintenance
-      WHERE date BETWEEN $1 AND $2
-    `, [startDate, endDate])
+      // Total expenses for period
+      pool.query<SumResult>(`
+        SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE date BETWEEN $1 AND $2
+      `, [startDate, endDate]),
 
-    // Next return (closest ending rental)
-    const nextReturnResult = await pool.query<RentalRow>(`
-      SELECT r.id, r.planned_end_date,
-        v.brand as vehicle_brand, v.model as vehicle_model,
-        c.full_name as client_full_name
-      FROM rentals r
-      LEFT JOIN vehicles v ON r.vehicle_id = v.id
-      LEFT JOIN clients c ON r.client_id = c.id
-      WHERE r.status = 'active'
-      ORDER BY r.planned_end_date ASC
-      LIMIT 1
-    `)
+      // Maintenance costs for period
+      pool.query<SumResult>(`
+        SELECT COALESCE(SUM(cost), 0) as total FROM maintenance WHERE date BETWEEN $1 AND $2
+      `, [startDate, endDate]),
+
+      // Next return (closest ending rental)
+      pool.query<RentalRow>(`
+        SELECT r.id, r.planned_end_date,
+          v.brand as vehicle_brand, v.model as vehicle_model,
+          c.full_name as client_full_name
+        FROM rentals r
+        LEFT JOIN vehicles v ON r.vehicle_id = v.id
+        LEFT JOIN clients c ON r.client_id = c.id
+        WHERE r.status = 'active'
+        ORDER BY r.planned_end_date ASC
+        LIMIT 1
+      `),
+    ])
 
     let nextReturnData = null
     if (nextReturnResult.rows.length > 0) {
@@ -94,6 +100,7 @@ router.get('/summary', async (req: Request, res: Response) => {
           },
         },
         hoursRemaining,
+        vehicleName: `${nextReturn.vehicle_brand} ${nextReturn.vehicle_model}`,
       }
     }
 
@@ -104,6 +111,7 @@ router.get('/summary', async (req: Request, res: Response) => {
     res.json({
       activeRentals: parseInt(activeRentalsResult.rows[0].count),
       availableVehicles: parseInt(availableVehiclesResult.rows[0].count),
+      maintenanceVehicles: parseInt(maintenanceVehiclesResult.rows[0].count),
       monthlyIncome: income,
       totalIncome: income,
       totalExpenses: expenses + maintenanceCosts,

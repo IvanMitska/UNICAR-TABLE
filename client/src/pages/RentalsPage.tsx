@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import type { Rental, Vehicle, Client, RentalStatus, RentalFormData, RateType, PaymentMethod } from '@/types'
+import type { Rental, Vehicle, Client, RentalStatus, RentalFormData, PaymentMethod } from '@/types'
 import clsx from 'clsx'
 import SelectDropdown from '@/components/ui/SelectDropdown'
 import DatePicker from '@/components/ui/DatePicker'
+import { getRentalPriceInfo, calculateDays } from '@/utils/pricing'
 
 // Custom Select Component
 interface SelectOption {
@@ -64,15 +65,15 @@ function CustomSelect({
         onClick={() => setIsOpen(!isOpen)}
         className={clsx(
           'w-full flex items-center gap-2 sm:gap-3 px-3 py-2.5 sm:px-4 sm:py-3 rounded-xl text-left transition-all duration-200',
-          'bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm',
-          'border border-gray-200/60 dark:border-gray-700/60',
-          'hover:border-primary-300 dark:hover:border-primary-600',
-          'focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400',
-          isOpen && 'ring-2 ring-primary-500/20 border-primary-400'
+          'bg-white/80 dark:bg-zinc-800/80 backdrop-blur-sm',
+          'border border-gray-200/60 dark:border-zinc-700/60',
+          'hover:border-gray-400 dark:hover:border-zinc-500',
+          'focus:outline-none focus:ring-2 focus:ring-gray-200 dark:focus:ring-zinc-700 focus:border-gray-400',
+          isOpen && 'ring-2 ring-gray-200 dark:ring-zinc-700 border-gray-400 dark:border-zinc-500'
         )}
       >
         {icon && (
-          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center flex-shrink-0">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-br from-gray-100 to-gray-200 dark:from-zinc-700 dark:to-zinc-800 flex items-center justify-center flex-shrink-0">
             {icon}
           </div>
         )}
@@ -101,9 +102,9 @@ function CustomSelect({
             border: '1px solid rgba(255,255,255,0.3)',
           }}
         >
-          <div className="dark:bg-gray-900/95">
+          <div className="dark:bg-zinc-900/95">
             {/* Search */}
-            <div className="p-2.5 sm:p-3 border-b border-gray-200/50 dark:border-gray-700/50">
+            <div className="p-2.5 sm:p-3 border-b border-gray-200/50 dark:border-zinc-700/50">
               <div className="relative">
                 <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
@@ -112,7 +113,7 @@ function CustomSelect({
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder={searchPlaceholder}
-                  className="w-full pl-9 pr-4 py-2 sm:py-2.5 rounded-xl bg-gray-100/80 dark:bg-gray-800/80 border-0 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                  className="w-full pl-9 pr-4 py-2 sm:py-2.5 rounded-xl bg-gray-100/80 dark:bg-zinc-800/80 border-0 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-zinc-600"
                 />
               </div>
             </div>
@@ -136,25 +137,25 @@ function CustomSelect({
                     className={clsx(
                       'w-full flex items-center gap-2.5 sm:gap-3 px-3 py-2.5 sm:px-4 sm:py-3 text-left transition-all duration-150',
                       option.value === value
-                        ? 'bg-primary-50 dark:bg-primary-900/30'
+                        ? 'bg-gray-100 dark:bg-zinc-800'
                         : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
                     )}
                   >
                     <div className={clsx(
                       'w-4 h-4 sm:w-5 sm:h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all',
                       option.value === value
-                        ? 'border-primary-500 bg-primary-500'
-                        : 'border-gray-300 dark:border-gray-600'
+                        ? 'border-gray-900 dark:border-white bg-gray-900 dark:bg-white'
+                        : 'border-gray-300 dark:border-zinc-600'
                     )}>
                       {option.value === value && (
-                        <CheckSmallIcon className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white" />
+                        <CheckSmallIcon className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white dark:text-gray-900" />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className={clsx(
                         'text-sm sm:text-base font-medium truncate',
                         option.value === value
-                          ? 'text-primary-600 dark:text-primary-400'
+                          ? 'text-gray-900 dark:text-white'
                           : 'text-gray-900 dark:text-white'
                       )}>
                         {option.label}
@@ -178,18 +179,14 @@ const statusLabels: Record<RentalStatus, string> = {
   active: 'Активна',
   completed: 'Завершена',
   cancelled: 'Отменена',
+  overdue: 'Просрочена',
 }
 
 const statusColors: Record<RentalStatus, string> = {
   active: 'badge-success',
   completed: 'badge-info',
   cancelled: 'badge-danger',
-}
-
-const rateLabels: Record<RateType, string> = {
-  hourly: 'Час',
-  daily: 'День',
-  monthly: 'Месяц',
+  overdue: 'badge-warning',
 }
 
 const paymentLabels: Record<PaymentMethod, string> = {
@@ -207,6 +204,7 @@ export default function RentalsPage() {
   const [statusFilter, setStatusFilter] = useState<RentalStatus | 'all'>('all')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingRental, setEditingRental] = useState<Rental | null>(null)
+  const [viewingVehicle, setViewingVehicle] = useState<Vehicle | null>(null)
 
   useEffect(() => {
     fetchData()
@@ -304,10 +302,10 @@ export default function RentalsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center h-[60vh]">
         <div className="relative">
-          <div className="w-12 h-12 rounded-full border-4 border-primary-200 dark:border-primary-900" />
-          <div className="absolute inset-0 w-12 h-12 rounded-full border-4 border-transparent border-t-primary-500 animate-spin" />
+          <div className="w-12 h-12 rounded-full border-[3px] border-gray-200 dark:border-zinc-700" />
+          <div className="absolute inset-0 w-12 h-12 rounded-full border-[3px] border-transparent border-t-gray-900 dark:border-t-white animate-spin" />
         </div>
       </div>
     )
@@ -317,59 +315,73 @@ export default function RentalsPage() {
   const stats = {
     total: rentals.length,
     active: rentals.filter(r => r.status === 'active').length,
+    overdue: rentals.filter(r => r.status === 'overdue').length,
     completed: rentals.filter(r => r.status === 'completed').length,
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-8 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Аренды</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Управление арендами: {stats.active} активных из {stats.total}
-          </p>
+      <header className="animate-slide-up">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Управление</p>
+            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white tracking-tight">
+              Аренды
+            </h1>
+          </div>
+          <button
+            onClick={() => {
+              setEditingRental(null)
+              setIsModalOpen(true)
+            }}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-semibold hover:bg-gray-800 dark:hover:bg-gray-100 transition-all active:scale-[0.98] shadow-lg shadow-gray-900/10 dark:shadow-white/10"
+          >
+            <PlusIcon className="w-4 h-4" />
+            Новая аренда
+          </button>
         </div>
-        <button
-          onClick={() => {
-            setEditingRental(null)
-            setIsModalOpen(true)
-          }}
-          className="btn btn-primary"
-        >
-          <PlusIcon className="w-5 h-5 mr-2" />
-          Новая аренда
-        </button>
-      </div>
+      </header>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="flex flex-col items-center justify-center py-5 px-4 rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm animate-slide-up" style={{ animationDelay: '0ms' }}>
-          <span className="text-gray-600 dark:text-gray-400 mb-2">
-            <KeyIcon className="w-5 h-5" />
-          </span>
-          <p className="text-2xl font-semibold text-gray-900 dark:text-white tracking-tight">{stats.active}</p>
-          <p className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-500 mt-1">Активных</p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '0ms' }}>
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-50/50 to-transparent dark:from-zinc-800/10 dark:to-transparent pointer-events-none" />
+          <div className="relative">
+            <span className="text-gray-500 dark:text-gray-400 mb-4 block"><KeyIcon className="w-5 h-5" /></span>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{stats.active}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Активных</p>
+          </div>
         </div>
-        <div className="flex flex-col items-center justify-center py-5 px-4 rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm animate-slide-up" style={{ animationDelay: '50ms' }}>
-          <span className="text-gray-600 dark:text-gray-400 mb-2">
-            <CheckCircleIcon className="w-5 h-5" />
-          </span>
-          <p className="text-2xl font-semibold text-gray-900 dark:text-white tracking-tight">{stats.completed}</p>
-          <p className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-500 mt-1">Завершено</p>
+        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-orange-200/60 dark:border-orange-900/30 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '50ms' }}>
+          <div className="absolute inset-0 bg-gradient-to-br from-orange-50/50 to-transparent dark:from-orange-900/10 dark:to-transparent pointer-events-none" />
+          <div className="relative">
+            <span className="text-orange-500 dark:text-orange-400 mb-4 block"><ClockIcon className="w-5 h-5" /></span>
+            <p className="text-3xl font-bold text-orange-600 dark:text-orange-400 tracking-tight">{stats.overdue}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Просрочено</p>
+          </div>
         </div>
-        <div className="flex flex-col items-center justify-center py-5 px-4 rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm animate-slide-up" style={{ animationDelay: '100ms' }}>
-          <span className="text-gray-600 dark:text-gray-400 mb-2">
-            <ClipboardIcon className="w-5 h-5" />
-          </span>
-          <p className="text-2xl font-semibold text-gray-900 dark:text-white tracking-tight">{stats.total}</p>
-          <p className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-500 mt-1">Всего</p>
+        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '100ms' }}>
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/50 to-transparent dark:from-emerald-900/10 dark:to-transparent pointer-events-none" />
+          <div className="relative">
+            <span className="text-emerald-500 dark:text-emerald-400 mb-4 block"><CheckCircleIcon className="w-5 h-5" /></span>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{stats.completed}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Завершено</p>
+          </div>
+        </div>
+        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '150ms' }}>
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-50/50 to-transparent dark:from-zinc-800/20 dark:to-transparent pointer-events-none" />
+          <div className="relative">
+            <span className="text-gray-400 dark:text-gray-500 mb-4 block"><ClipboardIcon className="w-5 h-5" /></span>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{stats.total}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Всего</p>
+          </div>
         </div>
       </div>
 
       {/* Filters */}
       <div className="flex gap-2 flex-wrap">
-        {(['all', 'active', 'completed', 'cancelled'] as const).map((status) => (
+        {(['all', 'active', 'overdue', 'completed', 'cancelled'] as const).map((status) => (
           <button
             key={status}
             onClick={() => setStatusFilter(status)}
@@ -403,7 +415,11 @@ export default function RentalsPage() {
           {filteredRentals.map((rental, index) => (
             <div
               key={rental.id}
-              className="p-5 animate-slide-up rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm"
+              onClick={() => {
+                const vehicle = vehicles.find(v => v.id === rental.vehicleId)
+                if (vehicle) setViewingVehicle(vehicle)
+              }}
+              className="p-5 animate-slide-up rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm cursor-pointer hover:border-gray-200 dark:hover:border-zinc-700 hover:shadow-md transition-all"
               style={{ animationDelay: `${index * 50}ms` }}
             >
               <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -433,39 +449,39 @@ export default function RentalsPage() {
                     <UserIcon className="w-4 h-4 text-gray-400" />
                     <span className="text-gray-600 dark:text-gray-400">{rental.client?.fullName}</span>
                   </div>
+                  {rental.createdByName && (
+                    <div className="flex items-center gap-2 mt-1 text-xs text-gray-400 dark:text-gray-500">
+                      <span>Создал: {rental.createdByName}</span>
+                    </div>
+                  )}
                 </div>
 
-                <div className="grid grid-cols-4 gap-3 text-sm" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
-                  <div className="p-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 text-sm sm:w-[420px] lg:w-[480px] flex-shrink-0">
+                  <div className="p-2.5 sm:p-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 min-w-0">
                     <span className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wider">Начало</span>
-                    <p className="font-semibold text-gray-900 dark:text-white mt-0.5">
+                    <p className="font-semibold text-gray-900 dark:text-white mt-0.5 text-xs sm:text-sm truncate">
                       {formatDate(rental.startDate)}
                     </p>
                   </div>
-                  <div className="p-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700">
+                  <div className="p-2.5 sm:p-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 min-w-0">
                     <span className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wider">Конец</span>
-                    <p className="font-semibold text-gray-900 dark:text-white mt-0.5">
+                    <p className="font-semibold text-gray-900 dark:text-white mt-0.5 text-xs sm:text-sm truncate">
                       {formatDate(rental.plannedEndDate)}
                     </p>
                   </div>
-                  <div className="p-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700">
-                    <span className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wider">Тариф</span>
-                    <p className="font-semibold text-gray-900 dark:text-white mt-0.5 text-sm">
-                      {formatCurrency(rental.rateAmount)}<span className="text-xs text-gray-400">/{rateLabels[rental.rateType].toLowerCase()}</span>
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700">
+                  <RentalPriceCell rental={rental} formatCurrency={formatCurrency} />
+                  <div className="p-2.5 sm:p-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 min-w-0">
                     <span className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wider">Итого</span>
-                    <p className="font-bold text-gray-900 dark:text-white mt-0.5">
+                    <p className="font-bold text-gray-900 dark:text-white mt-0.5 text-xs sm:text-sm truncate">
                       {formatCurrency(rental.totalAmount)}
                     </p>
                   </div>
                 </div>
 
                 <div className="flex gap-2 lg:flex-col">
-                  {rental.status === 'active' && (
+                  {(rental.status === 'active' || rental.status === 'overdue') && (
                     <button
-                      onClick={() => handleComplete(rental)}
+                      onClick={(e) => { e.stopPropagation(); handleComplete(rental) }}
                       className="flex-1 lg:flex-none btn btn-primary text-sm py-2"
                     >
                       <CheckCircleIcon className="w-4 h-4 mr-1.5" />
@@ -473,7 +489,8 @@ export default function RentalsPage() {
                     </button>
                   )}
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation()
                       setEditingRental(rental)
                       setIsModalOpen(true)
                     }}
@@ -505,6 +522,94 @@ export default function RentalsPage() {
           }}
         />
       )}
+
+      {/* Vehicle Detail Modal */}
+      {viewingVehicle && (
+        <VehicleDetailModal
+          vehicle={viewingVehicle}
+          rentals={rentals}
+          onClose={() => setViewingVehicle(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+// Rental Price Cell - shows daily rate with discount for list view
+function RentalPriceCell({ rental, formatCurrency }: { rental: Rental, formatCurrency: (n: number) => string }) {
+  const priceInfo = useMemo(() => {
+    const days = calculateDays(rental.startDate, rental.plannedEndDate)
+    return { days, ...getRentalPriceInfo(rental.rateAmount, days) }
+  }, [rental.startDate, rental.plannedEndDate, rental.rateAmount])
+
+  return (
+    <div className="p-2.5 sm:p-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 min-w-0">
+      <span className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wider">Тариф</span>
+      <p className="font-semibold text-gray-900 dark:text-white mt-0.5 text-xs sm:text-sm truncate">
+        {formatCurrency(priceInfo.dailyRate)}
+        <span className="text-[10px] sm:text-xs text-gray-400">/день</span>
+        {priceInfo.discountPercent > 0 && (
+          <span className="ml-1 text-[10px] text-green-500">-{priceInfo.discountPercent}%</span>
+        )}
+      </p>
+    </div>
+  )
+}
+
+// Price Calculator Component
+function PriceCalculator({
+  basePrice,
+  startDate,
+  endDate,
+}: {
+  basePrice: number
+  startDate: string
+  endDate: string
+}) {
+  const priceInfo = useMemo(() => {
+    const days = calculateDays(startDate, endDate)
+    return { days, ...getRentalPriceInfo(basePrice, days) }
+  }, [basePrice, startDate, endDate])
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('th-TH', {
+      style: 'currency',
+      currency: 'THB',
+      maximumFractionDigits: 0,
+    }).format(amount)
+  }
+
+  return (
+    <div className="p-4 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-zinc-800 dark:to-zinc-900 border border-gray-200 dark:border-zinc-700">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+          {priceInfo.days} {priceInfo.days === 1 ? 'день' : priceInfo.days < 5 ? 'дня' : 'дней'}
+        </span>
+        {priceInfo.discountPercent > 0 && (
+          <span className="px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 text-xs font-semibold">
+            -{priceInfo.discountPercent}%
+          </span>
+        )}
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <p className="text-[10px] uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Цена за день</p>
+          <p className="text-lg font-bold text-gray-900 dark:text-white">
+            {formatCurrency(priceInfo.dailyRate)}
+            {priceInfo.discountPercent > 0 && (
+              <span className="text-xs text-gray-400 dark:text-gray-500 line-through ml-2">
+                {formatCurrency(basePrice)}
+              </span>
+            )}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Итого</p>
+          <p className="text-xl font-bold text-gray-900 dark:text-white">
+            {formatCurrency(priceInfo.totalPrice)}
+          </p>
+        </div>
+      </div>
     </div>
   )
 }
@@ -634,6 +739,28 @@ function RentalModal({
           </div>
 
           <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-6 scrollbar-thin">
+            {/* Dates Section - First */}
+            <div className="form-section">
+              <div className="form-section-title">
+                <span className="form-section-icon bg-gray-100 dark:bg-zinc-800 text-gray-400 dark:text-gray-500">
+                  <CalendarIcon className="w-full h-full" />
+                </span>
+                Сроки аренды
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                <DatePicker
+                  label="Дата начала"
+                  value={formData.startDate}
+                  onChange={(value) => setFormData({ ...formData, startDate: value })}
+                />
+                <DatePicker
+                  label="Дата окончания"
+                  value={formData.plannedEndDate}
+                  onChange={(value) => setFormData({ ...formData, plannedEndDate: value })}
+                />
+              </div>
+            </div>
+
             {/* Vehicle & Client Selection */}
             <div className="form-section">
               <div className="form-section-title">
@@ -645,18 +772,25 @@ function RentalModal({
               <div className="space-y-4">
                 <div>
                   <label className="form-label required">Автомобиль</label>
-                  <CustomSelect
-                    options={vehicles.map(v => ({
-                      value: v.id,
-                      label: `${v.brand} ${v.model}`,
-                      sublabel: v.licensePlate,
-                    }))}
-                    value={formData.vehicleId}
-                    onChange={(value) => setFormData({ ...formData, vehicleId: value })}
-                    placeholder="Выберите автомобиль"
-                    searchPlaceholder="Поиск по марке или номеру..."
-                    icon={<CarIcon className="w-4 h-4 text-gray-500 dark:text-gray-400" />}
-                  />
+                  {vehicles.length === 0 ? (
+                    <div className="p-4 rounded-xl bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 text-center">
+                      <p className="text-sm text-orange-600 dark:text-orange-400 font-medium">Нет свободных автомобилей</p>
+                      <p className="text-xs text-orange-500 dark:text-orange-500 mt-1">Все автомобили сейчас в аренде</p>
+                    </div>
+                  ) : (
+                    <CustomSelect
+                      options={vehicles.map(v => ({
+                        value: v.id,
+                        label: `${v.brand} ${v.model}`,
+                        sublabel: v.licensePlate,
+                      }))}
+                      value={formData.vehicleId}
+                      onChange={(value) => setFormData({ ...formData, vehicleId: value })}
+                      placeholder="Выберите автомобиль"
+                      searchPlaceholder="Поиск по марке или номеру..."
+                      icon={<CarIcon className="w-4 h-4 text-gray-500 dark:text-gray-400" />}
+                    />
+                  )}
                   {selectedVehicle && (
                     <div className="mt-3 p-3 sm:p-3.5 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700">
                       <div className="grid grid-cols-3 gap-2 sm:flex sm:items-center sm:gap-4">
@@ -865,28 +999,6 @@ function RentalModal({
               </div>
             </div>
 
-            {/* Dates Section */}
-            <div className="form-section">
-              <div className="form-section-title">
-                <span className="form-section-icon bg-gray-100 dark:bg-zinc-800 text-gray-400 dark:text-gray-500">
-                  <CalendarIcon className="w-full h-full" />
-                </span>
-                Сроки аренды
-              </div>
-              <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                <DatePicker
-                  label="Дата начала"
-                  value={formData.startDate}
-                  onChange={(value) => setFormData({ ...formData, startDate: value })}
-                />
-                <DatePicker
-                  label="Дата окончания"
-                  value={formData.plannedEndDate}
-                  onChange={(value) => setFormData({ ...formData, plannedEndDate: value })}
-                />
-              </div>
-            </div>
-
             {/* Financial Section */}
             <div className="form-section">
               <div className="form-section-title">
@@ -895,15 +1007,19 @@ function RentalModal({
                 </span>
                 Оплата
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4">
-                <SelectDropdown
-                  label="Тариф"
-                  value={formData.rateType}
-                  onChange={(value) => setFormData({ ...formData, rateType: value as RateType })}
-                  options={Object.entries(rateLabels).map(([value, label]) => ({ value, label }))}
+
+              {/* Price Calculator */}
+              {formData.startDate && formData.plannedEndDate && formData.rateAmount > 0 && (
+                <PriceCalculator
+                  basePrice={formData.rateAmount}
+                  startDate={formData.startDate}
+                  endDate={formData.plannedEndDate}
                 />
+              )}
+
+              <div className="grid grid-cols-3 gap-2.5 sm:gap-4 mt-4">
                 <div>
-                  <label className="form-label required text-[10px] sm:text-xs">Сумма</label>
+                  <label className="form-label required text-[10px] sm:text-xs">Базовая цена/день</label>
                   <div className="relative">
                     <span className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-medium">฿</span>
                     <input
@@ -911,7 +1027,7 @@ function RentalModal({
                       required
                       min="0"
                       value={formData.rateAmount}
-                      onChange={(e) => setFormData({ ...formData, rateAmount: parseFloat(e.target.value) })}
+                      onChange={(e) => setFormData({ ...formData, rateAmount: parseFloat(e.target.value) || 0 })}
                       className="input-enhanced py-2 sm:py-3 pl-7 sm:pl-8 text-sm"
                     />
                   </div>
@@ -924,7 +1040,7 @@ function RentalModal({
                       type="number"
                       min="0"
                       value={formData.deposit}
-                      onChange={(e) => setFormData({ ...formData, deposit: parseFloat(e.target.value) })}
+                      onChange={(e) => setFormData({ ...formData, deposit: parseFloat(e.target.value) || 0 })}
                       className="input-enhanced py-2 sm:py-3 pl-7 sm:pl-8 text-sm"
                     />
                   </div>
@@ -1201,5 +1317,227 @@ function UserPlusIcon({ className }: { className?: string }) {
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z" />
     </svg>
+  )
+}
+
+function ClockIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
+
+function HistoryIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
+
+// Vehicle Detail Modal for viewing vehicle from rental
+function VehicleDetailModal({
+  vehicle,
+  rentals,
+  onClose,
+}: {
+  vehicle: Vehicle
+  rentals: Rental[]
+  onClose: () => void
+}) {
+  const vehicleRentals = rentals.filter(r => r.vehicleId === vehicle.id)
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    })
+  }
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('th-TH', {
+      style: 'currency',
+      currency: 'THB',
+      maximumFractionDigits: 0,
+    }).format(amount)
+  }
+
+  const rentalStatusLabels: Record<string, string> = {
+    active: 'Активна',
+    overdue: 'Просрочена',
+    completed: 'Завершена',
+    cancelled: 'Отменена',
+  }
+
+  const rentalStatusColors: Record<string, string> = {
+    active: 'badge-success',
+    overdue: 'badge-warning',
+    completed: 'badge-gray',
+    cancelled: 'badge-danger',
+  }
+
+  const vehicleStatusLabels: Record<string, string> = {
+    available: 'Свободен',
+    rented: 'В аренде',
+    maintenance: 'На ТО',
+    archived: 'В архиве',
+  }
+
+  const vehicleStatusColors: Record<string, string> = {
+    available: 'badge-success',
+    rented: 'badge-info',
+    maintenance: 'badge-warning',
+    archived: 'badge-gray',
+  }
+
+  const totalRentals = vehicleRentals.length
+  const totalEarned = vehicleRentals.reduce((sum, r) => sum + (r.totalAmount || 0), 0)
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="modal-overlay" onClick={onClose} />
+      <div className="flex min-h-full items-center justify-center p-4">
+        <div className="modal-content relative z-10 w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-zinc-800">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-gray-100 dark:bg-zinc-800 flex items-center justify-center">
+                <CarIcon className="w-7 h-7 text-gray-500 dark:text-gray-400" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  {vehicle.brand} {vehicle.model}
+                </h2>
+                <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  <span className="font-mono">{vehicle.licensePlate}</span>
+                  <span className={clsx('badge', vehicleStatusColors[vehicle.status])}>
+                    {vehicleStatusLabels[vehicle.status]}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2.5 rounded-xl bg-gray-50 dark:bg-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors"
+            >
+              <CloseIcon className="w-5 h-5 text-gray-500" />
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
+            {/* Stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="p-4 rounded-xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700">
+                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Год</p>
+                <p className="text-xl font-semibold text-gray-900 dark:text-white">{vehicle.year}</p>
+              </div>
+              <div className="p-4 rounded-xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700">
+                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Пробег</p>
+                <p className="text-xl font-semibold text-gray-900 dark:text-white">{vehicle.mileage?.toLocaleString()} км</p>
+              </div>
+              <div className="p-4 rounded-xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700">
+                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Всего аренд</p>
+                <p className="text-xl font-semibold text-gray-900 dark:text-white">{totalRentals}</p>
+              </div>
+              <div className="p-4 rounded-xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700">
+                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Заработано</p>
+                <p className="text-xl font-semibold text-gray-900 dark:text-white">{formatCurrency(totalEarned)}</p>
+              </div>
+            </div>
+
+            {/* Rates */}
+            {vehicle.rateMonthly > 0 && (
+              <div className="p-4 rounded-xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700">
+                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Тарифы</p>
+                <div className="flex flex-wrap gap-4">
+                  {vehicle.rateDaily > 0 && (
+                    <div>
+                      <span className="text-gray-400 dark:text-gray-500 text-sm">1 день:</span>
+                      <span className="ml-2 font-semibold text-gray-900 dark:text-white">฿{vehicle.rateDaily.toLocaleString()}</span>
+                    </div>
+                  )}
+                  {vehicle.rate7days > 0 && (
+                    <div>
+                      <span className="text-gray-400 dark:text-gray-500 text-sm">7 дней:</span>
+                      <span className="ml-2 font-semibold text-gray-900 dark:text-white">฿{vehicle.rate7days.toLocaleString()}</span>
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-gray-400 dark:text-gray-500 text-sm">Месяц:</span>
+                    <span className="ml-2 font-semibold text-gray-900 dark:text-white">฿{vehicle.rateMonthly.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Rental History */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                <HistoryIcon className="w-4 h-4 text-gray-400" />
+                История аренд
+              </h3>
+
+              {vehicleRentals.length === 0 ? (
+                <div className="text-center py-8 rounded-xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700">
+                  <UserIcon className="w-10 h-10 text-gray-300 dark:text-zinc-600 mx-auto mb-2" />
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Нет истории аренд</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {vehicleRentals.map((rental) => (
+                    <div
+                      key={rental.id}
+                      className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 flex items-center justify-center">
+                          <UserIcon className="w-5 h-5 text-gray-400" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            {rental.client?.fullName || 'Неизвестный клиент'}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {formatDate(rental.startDate)} — {formatDate(rental.plannedEndDate)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <p className="font-semibold text-gray-900 dark:text-white">
+                          {formatCurrency(rental.totalAmount || 0)}
+                        </p>
+                        <span className={clsx('badge', rentalStatusColors[rental.status])}>
+                          {rentalStatusLabels[rental.status]}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Notes */}
+            {vehicle.notes && (
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Заметки</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 p-4 rounded-xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700">
+                  {vehicle.notes}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="p-4 border-t border-gray-100 dark:border-zinc-800">
+            <button onClick={onClose} className="w-full btn btn-secondary py-3">
+              Закрыть
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }

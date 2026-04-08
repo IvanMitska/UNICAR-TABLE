@@ -2,31 +2,34 @@ import { useState, useEffect } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { useTheme } from '@/context/ThemeContext'
-import SearchBar from './SearchBar'
 import NotificationsDropdown from './NotificationsDropdown'
 import clsx from 'clsx'
 
-const mainNav = [
-  { name: 'Главная', href: '/dashboard', icon: HomeIcon, description: 'Обзор и статистика' },
-  { name: 'Аренды', href: '/rentals', icon: KeyIcon, description: 'Управление арендами', badge: true },
-  { name: 'Заявки', href: '/booking-requests', icon: InboxIcon, description: 'Заявки с сайта' },
+// Bottom navigation items for mobile
+const bottomNav = [
+  { name: 'Главная', href: '/dashboard', icon: HomeIcon },
+  { name: 'Аренды', href: '/rentals', icon: KeyIcon },
+  { name: 'Авто', href: '/vehicles', icon: CarIcon },
+  { name: 'Клиенты', href: '/clients', icon: UsersIcon },
+  { name: 'Ещё', href: '#more', icon: MoreIcon, isMore: true },
 ]
 
-const directoryNav = [
-  { name: 'Автомобили', href: '/vehicles', icon: CarIcon, description: 'Автопарк' },
-  { name: 'Клиенты', href: '/clients', icon: UsersIcon, description: 'База клиентов' },
-]
-
-const managementNav = [
-  { name: 'Обслуживание', href: '/maintenance', icon: WrenchIcon, description: 'ТО и ремонт' },
-  { name: 'Финансы', href: '/finances', icon: ChartIcon, description: 'Отчёты и аналитика' },
+// Sidebar navigation
+const sidebarNav = [
+  { name: 'Главная', href: '/dashboard', icon: HomeIcon },
+  { name: 'Аренды', href: '/rentals', icon: KeyIcon, badge: true },
+  { name: 'Заявки', href: '/booking-requests', icon: InboxIcon },
+  { name: 'Автомобили', href: '/vehicles', icon: CarIcon },
+  { name: 'Клиенты', href: '/clients', icon: UsersIcon },
+  { name: 'Обслуживание', href: '/maintenance', icon: WrenchIcon },
+  { name: 'Финансы', href: '/finances', icon: ChartIcon },
 ]
 
 export default function Layout() {
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true) // Collapsed by default
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false)
   const [activeRentalsCount, setActiveRentalsCount] = useState(0)
-  const { logout } = useAuth()
+  const { logout, user, isAdmin } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
   const location = useLocation()
@@ -45,14 +48,13 @@ export default function Layout() {
       }
     }
     fetchActiveRentals()
-    // Refetch every 30 seconds
     const interval = setInterval(fetchActiveRentals, 30000)
     return () => clearInterval(interval)
   }, [location.pathname])
 
-  // Close mobile sidebar on route change
+  // Close more menu on route change
   useEffect(() => {
-    setSidebarOpen(false)
+    setMoreMenuOpen(false)
   }, [location.pathname])
 
   const handleLogout = () => {
@@ -60,56 +62,43 @@ export default function Layout() {
     navigate('/login')
   }
 
-  const NavItem = ({ item, collapsed }: { item: typeof mainNav[0]; collapsed: boolean }) => (
+  // Desktop sidebar item
+  const SidebarItem = ({ item }: { item: typeof sidebarNav[0] }) => (
     <NavLink
       to={item.href}
       className={({ isActive }) =>
         clsx(
-          'group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
-          collapsed ? 'justify-center' : '',
+          'group relative flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all duration-150',
+          sidebarCollapsed ? 'justify-center' : '',
           isActive
-            ? 'bg-white dark:bg-zinc-800 text-gray-900 dark:text-white border border-gray-100 dark:border-zinc-700 shadow-sm'
-            : 'text-gray-600 dark:text-gray-400 hover:bg-white/60 dark:hover:bg-zinc-800/60 hover:text-gray-900 dark:hover:text-white'
+            ? 'bg-white dark:bg-zinc-800 text-gray-900 dark:text-white font-medium shadow-sm'
+            : 'text-gray-500 dark:text-gray-400 hover:bg-white/50 dark:hover:bg-zinc-800/50 hover:text-gray-900 dark:hover:text-white'
         )
       }
     >
       {({ isActive }) => (
         <>
-          {/* Active indicator */}
-          {isActive && (
-            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-gray-900 dark:bg-white rounded-r-full" />
+          <item.icon className={clsx('w-5 h-5 shrink-0', isActive && 'text-gray-900 dark:text-white')} />
+
+          {!sidebarCollapsed && (
+            <span className="flex-1 truncate">{item.name}</span>
           )}
 
-          {/* Icon container */}
-          <span className={clsx(
-            'flex items-center justify-center w-9 h-9 rounded-lg transition-all duration-200',
-            isActive
-              ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900'
-              : 'bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-gray-400 group-hover:bg-gray-200 dark:group-hover:bg-zinc-700 group-hover:text-gray-700 dark:group-hover:text-gray-200'
-          )}>
-            <item.icon className="w-5 h-5" />
-          </span>
-
-          {/* Text */}
-          {!collapsed && (
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="truncate">{item.name}</span>
-                {item.badge && activeRentalsCount > 0 && (
-                  <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[10px] font-bold bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-full">
-                    {activeRentalsCount}
-                  </span>
-                )}
-              </div>
-              <p className="text-[11px] text-gray-400 dark:text-gray-500 truncate">{item.description}</p>
-            </div>
+          {!sidebarCollapsed && item.badge && activeRentalsCount > 0 && (
+            <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[10px] font-semibold bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-full">
+              {activeRentalsCount}
+            </span>
           )}
 
-          {/* Tooltip for collapsed */}
-          {collapsed && (
-            <div className="absolute left-full ml-2 px-3 py-2 bg-gray-900 dark:bg-zinc-800 text-white text-sm rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 shadow-xl border border-gray-800 dark:border-zinc-700">
+          {/* Tooltip */}
+          {sidebarCollapsed && (
+            <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-xs font-medium rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 shadow-lg">
               {item.name}
-              <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 w-2 h-2 bg-gray-900 dark:bg-zinc-800 rotate-45" />
+              {item.badge && activeRentalsCount > 0 && (
+                <span className="ml-1.5 px-1.5 py-0.5 bg-white/20 dark:bg-gray-900/20 rounded">
+                  {activeRentalsCount}
+                </span>
+              )}
             </div>
           )}
         </>
@@ -117,198 +106,131 @@ export default function Layout() {
     </NavLink>
   )
 
-  const NavSection = ({ title, items, collapsed }: { title: string; items: typeof mainNav; collapsed: boolean }) => (
-    <div className="mb-6">
-      {!collapsed && (
-        <p className="px-3 mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
-          {title}
-        </p>
-      )}
-      {collapsed && <div className="h-px bg-gray-200 dark:bg-zinc-800 mx-3 mb-3" />}
-      <div className="space-y-1">
-        {items.map((item) => (
-          <NavItem key={item.name} item={item} collapsed={collapsed} />
-        ))}
-      </div>
-    </div>
-  )
-
-  const sidebarWidth = sidebarCollapsed ? 'w-20' : 'w-72'
-  const mainPadding = sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-72'
+  const sidebarWidth = sidebarCollapsed ? 'w-[72px]' : 'w-64'
+  const mainPadding = sidebarCollapsed ? 'lg:pl-[72px]' : 'lg:pl-64'
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-zinc-950">
-      {/* Mobile sidebar overlay */}
-      <div
-        className={clsx(
-          'fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden transition-opacity duration-300',
-          sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        )}
-        onClick={() => setSidebarOpen(false)}
-      />
-
-      {/* Sidebar */}
+    <div className="min-h-screen bg-gray-100 dark:bg-zinc-950 pb-16 lg:pb-0">
+      {/* Desktop Sidebar */}
       <aside
         className={clsx(
-          'fixed inset-y-0 left-0 z-50 flex flex-col transition-all duration-300 ease-out',
-          'bg-white dark:bg-zinc-900',
-          'border-r border-gray-100 dark:border-zinc-800',
-          sidebarWidth,
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+          'fixed inset-y-0 left-0 z-40 hidden lg:flex flex-col transition-all duration-200',
+          'bg-gray-50 dark:bg-zinc-900 border-r border-gray-200 dark:border-zinc-800',
+          sidebarWidth
         )}
       >
-        {/* Logo & collapse button */}
+        {/* Logo */}
         <div className={clsx(
-          'flex items-center justify-between h-16 border-b border-gray-100 dark:border-zinc-800',
-          sidebarCollapsed ? 'px-2' : 'px-4'
+          'flex items-center h-14 border-b border-gray-200 dark:border-zinc-800',
+          sidebarCollapsed ? 'justify-center px-2' : 'px-4'
         )}>
           <span className={clsx(
-            'font-bold tracking-wider text-gray-900 dark:text-white',
-            sidebarCollapsed ? 'text-sm' : 'text-lg'
+            'font-bold text-gray-900 dark:text-white',
+            sidebarCollapsed ? 'text-lg' : 'text-xl tracking-tight'
           )}>
-            UNICAR
+            {sidebarCollapsed ? 'U' : 'UNICAR'}
           </span>
-
-          {/* Collapse button - desktop only */}
-          <button
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className={clsx(
-              'hidden lg:flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors',
-              sidebarCollapsed && 'absolute -right-3 top-5 w-6 h-6 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 shadow-md'
-            )}
-          >
-            <ChevronIcon className={clsx('w-4 h-4 transition-transform', sidebarCollapsed ? 'rotate-180' : '')} />
-          </button>
-
-          {/* Close button - mobile only */}
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
-          >
-            <CloseIcon className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Quick action */}
-        <div className={clsx('p-3 border-b border-gray-100 dark:border-zinc-800', sidebarCollapsed && 'px-2')}>
-          <button
-            onClick={() => navigate('/rentals?action=new')}
-            className={clsx(
-              'w-full flex items-center justify-center gap-2 bg-gray-900 dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-100 text-white dark:text-gray-900 rounded-xl font-semibold transition-all duration-200 active:scale-[0.98]',
-              sidebarCollapsed ? 'p-3' : 'px-4 py-3.5'
-            )}
-          >
-            <PlusIcon className="w-5 h-5" />
-            {!sidebarCollapsed && <span className="text-sm">Новая аренда</span>}
-          </button>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-3 overflow-y-auto scrollbar-thin">
-          <NavSection title="Основное" items={mainNav} collapsed={sidebarCollapsed} />
-          <NavSection title="Справочники" items={directoryNav} collapsed={sidebarCollapsed} />
-          <NavSection title="Учёт" items={managementNav} collapsed={sidebarCollapsed} />
+        <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
+          {sidebarNav.map((item) => (
+            <SidebarItem key={item.href} item={item} />
+          ))}
         </nav>
 
-        {/* Bottom section */}
-        <div className="p-3 border-t border-gray-100 dark:border-zinc-800 space-y-1">
-          {/* Settings */}
+        {/* Bottom actions */}
+        <div className="p-2 border-t border-gray-200 dark:border-zinc-800 space-y-1">
+          {isAdmin && (
+            <NavLink
+              to="/users"
+              className={({ isActive }) =>
+                clsx(
+                  'group relative flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all',
+                  sidebarCollapsed ? 'justify-center' : '',
+                  isActive
+                    ? 'bg-white dark:bg-zinc-800 text-gray-900 dark:text-white'
+                    : 'text-gray-500 dark:text-gray-400 hover:bg-white/50 dark:hover:bg-zinc-800/50'
+                )
+              }
+            >
+              <UserGroupIcon className="w-5 h-5" />
+              {!sidebarCollapsed && <span>Пользователи</span>}
+              {sidebarCollapsed && (
+                <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible whitespace-nowrap z-50">
+                  Пользователи
+                </div>
+              )}
+            </NavLink>
+          )}
+
           <NavLink
             to="/settings"
             className={({ isActive }) =>
               clsx(
-                'group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
+                'group relative flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all',
                 sidebarCollapsed ? 'justify-center' : '',
                 isActive
-                  ? 'bg-gray-100 dark:bg-zinc-800 text-gray-900 dark:text-white'
-                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-zinc-800 hover:text-gray-900 dark:hover:text-white'
+                  ? 'bg-white dark:bg-zinc-800 text-gray-900 dark:text-white'
+                  : 'text-gray-500 dark:text-gray-400 hover:bg-white/50 dark:hover:bg-zinc-800/50'
               )
             }
           >
             <CogIcon className="w-5 h-5" />
             {!sidebarCollapsed && <span>Настройки</span>}
             {sidebarCollapsed && (
-              <div className="absolute left-full ml-2 px-3 py-2 bg-gray-900 dark:bg-zinc-800 text-white text-sm rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 shadow-lg border border-gray-800 dark:border-zinc-700">
+              <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible whitespace-nowrap z-50">
                 Настройки
               </div>
             )}
           </NavLink>
 
-          {/* Theme toggle */}
+          {/* Collapse toggle */}
           <button
-            onClick={toggleTheme}
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
             className={clsx(
-              'group relative flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-zinc-800 hover:text-gray-900 dark:hover:text-white transition-all duration-200',
+              'flex items-center gap-3 w-full px-3 py-2 rounded-xl text-sm text-gray-500 dark:text-gray-400 hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-all',
               sidebarCollapsed ? 'justify-center' : ''
             )}
           >
-            <div className="relative w-5 h-5">
-              <SunIcon className={clsx(
-                'w-5 h-5 absolute inset-0 transition-all duration-300',
-                theme === 'dark' ? 'opacity-100 rotate-0' : 'opacity-0 rotate-90'
-              )} />
-              <MoonIcon className={clsx(
-                'w-5 h-5 absolute inset-0 transition-all duration-300',
-                theme === 'dark' ? 'opacity-0 -rotate-90' : 'opacity-100 rotate-0'
-              )} />
-            </div>
-            {!sidebarCollapsed && <span>{theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}</span>}
-            {sidebarCollapsed && (
-              <div className="absolute left-full ml-2 px-3 py-2 bg-gray-900 dark:bg-zinc-800 text-white text-sm rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 shadow-lg border border-gray-800 dark:border-zinc-700">
-                {theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
-              </div>
-            )}
-          </button>
-
-          {/* Logout */}
-          <button
-            onClick={handleLogout}
-            className={clsx(
-              'group relative flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all duration-200',
-              sidebarCollapsed ? 'justify-center' : ''
-            )}
-          >
-            <LogoutIcon className="w-5 h-5" />
-            {!sidebarCollapsed && <span>Выйти</span>}
-            {sidebarCollapsed && (
-              <div className="absolute left-full ml-2 px-3 py-2 bg-gray-900 dark:bg-zinc-800 text-white text-sm rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 shadow-lg border border-gray-800 dark:border-zinc-700">
-                Выйти
-              </div>
-            )}
+            <ChevronIcon className={clsx('w-5 h-5 transition-transform', sidebarCollapsed && 'rotate-180')} />
+            {!sidebarCollapsed && <span>Свернуть</span>}
           </button>
         </div>
       </aside>
 
       {/* Main content */}
-      <div className={clsx('transition-all duration-300', mainPadding)}>
-        {/* Top bar */}
-        <header className="sticky top-0 z-30 h-16 px-4 lg:px-6 flex items-center gap-4 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-sm border-b border-gray-100 dark:border-zinc-800">
-          {/* Mobile menu button */}
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="lg:hidden p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
-          >
-            <MenuIcon className="w-5 h-5" />
-          </button>
+      <div className={clsx('transition-all duration-200', mainPadding)}>
+        {/* Top header */}
+        <header className="sticky top-0 z-30 h-14 px-4 flex items-center justify-between gap-4 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md border-b border-gray-200 dark:border-zinc-800">
+          {/* Left: User greeting */}
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-gray-900 dark:bg-white flex items-center justify-center text-white dark:text-gray-900 font-semibold text-sm">
+              {user?.fullName?.charAt(0).toUpperCase() || 'U'}
+            </div>
+            <div className="hidden sm:block">
+              <p className="text-sm font-medium text-gray-900 dark:text-white">{user?.fullName || 'User'}</p>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">{isAdmin ? 'Администратор' : 'Агент'}</p>
+            </div>
+          </div>
 
-          {/* Search bar */}
-          <SearchBar />
-
-          {/* Right section */}
+          {/* Right: Actions */}
           <div className="flex items-center gap-2">
-            {/* Notifications */}
             <NotificationsDropdown />
 
-            {/* User menu */}
-            <div className="hidden sm:flex items-center gap-3 pl-3 ml-1 border-l border-gray-200 dark:border-zinc-700">
-              <div className="w-10 h-10 rounded-xl bg-gray-900 dark:bg-white flex items-center justify-center text-white dark:text-gray-900 font-semibold text-sm">
-                U
-              </div>
-              <div className="hidden md:block">
-                <p className="text-sm font-semibold text-gray-900 dark:text-white">Admin</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Управляющий</p>
-              </div>
-            </div>
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-xl text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
+            >
+              {theme === 'dark' ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
+            </button>
+
+            <button
+              onClick={handleLogout}
+              className="hidden sm:flex p-2 rounded-xl text-gray-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+            >
+              <LogoutIcon className="w-5 h-5" />
+            </button>
           </div>
         </header>
 
@@ -317,6 +239,94 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+
+      {/* Mobile Bottom Navigation */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 h-16 bg-white dark:bg-zinc-900 border-t border-gray-200 dark:border-zinc-800 safe-area-pb">
+        <div className="flex items-center justify-around h-full px-2">
+          {bottomNav.map((item) => (
+            item.isMore ? (
+              <button
+                key={item.name}
+                onClick={() => setMoreMenuOpen(!moreMenuOpen)}
+                className={clsx(
+                  'flex flex-col items-center justify-center flex-1 h-full gap-0.5 transition-colors',
+                  moreMenuOpen ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500'
+                )}
+              >
+                <item.icon className="w-6 h-6" />
+                <span className="text-[10px] font-medium">{item.name}</span>
+              </button>
+            ) : (
+              <NavLink
+                key={item.href}
+                to={item.href}
+                className={({ isActive }) =>
+                  clsx(
+                    'flex flex-col items-center justify-center flex-1 h-full gap-0.5 transition-colors',
+                    isActive
+                      ? 'text-gray-900 dark:text-white'
+                      : 'text-gray-400 dark:text-gray-500'
+                  )
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    <item.icon className={clsx('w-6 h-6', isActive && 'scale-110')} />
+                    <span className="text-[10px] font-medium">{item.name}</span>
+                  </>
+                )}
+              </NavLink>
+            )
+          ))}
+        </div>
+      </nav>
+
+      {/* Mobile More Menu */}
+      {moreMenuOpen && (
+        <>
+          <div
+            className="lg:hidden fixed inset-0 z-30 bg-black/50"
+            onClick={() => setMoreMenuOpen(false)}
+          />
+          <div className="lg:hidden fixed bottom-16 left-0 right-0 z-40 bg-white dark:bg-zinc-900 border-t border-gray-200 dark:border-zinc-800 rounded-t-2xl p-4 safe-area-pb animate-slide-up">
+            <div className="grid grid-cols-4 gap-4">
+              {[
+                { name: 'Заявки', href: '/booking-requests', icon: InboxIcon },
+                { name: 'ТО', href: '/maintenance', icon: WrenchIcon },
+                { name: 'Финансы', href: '/finances', icon: ChartIcon },
+                { name: 'Настройки', href: '/settings', icon: CogIcon },
+                ...(isAdmin ? [{ name: 'Польз.', href: '/users', icon: UserGroupIcon }] : []),
+              ].map((item) => (
+                <NavLink
+                  key={item.href}
+                  to={item.href}
+                  onClick={() => setMoreMenuOpen(false)}
+                  className={({ isActive }) =>
+                    clsx(
+                      'flex flex-col items-center justify-center gap-1 p-3 rounded-xl transition-colors',
+                      isActive
+                        ? 'bg-gray-100 dark:bg-zinc-800 text-gray-900 dark:text-white'
+                        : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-zinc-800/50'
+                    )
+                  }
+                >
+                  <item.icon className="w-6 h-6" />
+                  <span className="text-xs font-medium">{item.name}</span>
+                </NavLink>
+              ))}
+
+              {/* Logout in more menu for mobile */}
+              <button
+                onClick={handleLogout}
+                className="flex flex-col items-center justify-center gap-1 p-3 rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+              >
+                <LogoutIcon className="w-6 h-6" />
+                <span className="text-xs font-medium">Выйти</span>
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -379,22 +389,6 @@ function CogIcon({ className }: { className?: string }) {
   )
 }
 
-function MenuIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-    </svg>
-  )
-}
-
-function CloseIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-    </svg>
-  )
-}
-
 function SunIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -419,14 +413,6 @@ function LogoutIcon({ className }: { className?: string }) {
   )
 }
 
-function PlusIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-    </svg>
-  )
-}
-
 function ChevronIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -439,6 +425,22 @@ function InboxIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859m-19.5.338V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18v-4.162c0-.224-.034-.447-.1-.661L19.24 5.338a2.25 2.25 0 00-2.15-1.588H6.911a2.25 2.25 0 00-2.15 1.588L2.35 13.177a2.25 2.25 0 00-.1.661z" />
+    </svg>
+  )
+}
+
+function UserGroupIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
+    </svg>
+  )
+}
+
+function MoreIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
     </svg>
   )
 }

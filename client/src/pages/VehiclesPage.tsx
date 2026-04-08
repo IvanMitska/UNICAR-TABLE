@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import type { Vehicle, VehicleStatus, VehicleFormData } from '@/types'
+import type { Vehicle, VehicleStatus, VehicleFormData, Rental } from '@/types'
 import clsx from 'clsx'
 import SelectDropdown from '@/components/ui/SelectDropdown'
 import DatePicker from '@/components/ui/DatePicker'
 import VehicleMetadataEditor from '@/components/vehicles/VehicleMetadataEditor'
+import { useAuth } from '@/context/AuthContext'
 
 const statusLabels: Record<VehicleStatus, string> = {
   available: 'Свободен',
@@ -30,15 +31,19 @@ const fuelLabels: Record<string, string> = {
 export default function VehiclesPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
+  const [activeRentalsCount, setActiveRentalsCount] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<VehicleStatus | 'all'>('all')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null)
+  const [viewingVehicle, setViewingVehicle] = useState<Vehicle | null>(null)
   const [metadataVehicle, setMetadataVehicle] = useState<Vehicle | null>(null)
+  const { canEdit } = useAuth()
+  const canEditVehicles = canEdit('vehicle')
 
   useEffect(() => {
-    fetchVehicles()
+    fetchData()
   }, [])
 
   useEffect(() => {
@@ -48,15 +53,22 @@ export default function VehiclesPage() {
     }
   }, [searchParams, setSearchParams])
 
-  const fetchVehicles = async () => {
+  const fetchData = async () => {
     try {
-      const response = await fetch('/api/vehicles')
-      if (response.ok) {
-        const data = await response.json()
+      const [vehiclesRes, rentalsRes] = await Promise.all([
+        fetch('/api/vehicles'),
+        fetch('/api/rentals/active'),
+      ])
+      if (vehiclesRes.ok) {
+        const data = await vehiclesRes.json()
         setVehicles(data)
       }
+      if (rentalsRes.ok) {
+        const data = await rentalsRes.json()
+        setActiveRentalsCount(data.length)
+      }
     } catch (error) {
-      console.error('Failed to fetch vehicles:', error)
+      console.error('Failed to fetch data:', error)
     } finally {
       setIsLoading(false)
     }
@@ -76,7 +88,7 @@ export default function VehiclesPage() {
       })
 
       if (response.ok) {
-        fetchVehicles()
+        fetchData()
         setIsModalOpen(false)
         setEditingVehicle(null)
       }
@@ -91,7 +103,7 @@ export default function VehiclesPage() {
     try {
       const response = await fetch(`/api/vehicles/${id}`, { method: 'DELETE' })
       if (response.ok) {
-        fetchVehicles()
+        fetchData()
       }
     } catch (error) {
       console.error('Failed to delete vehicle:', error)
@@ -115,69 +127,80 @@ export default function VehiclesPage() {
   const stats = {
     total: vehicles.length,
     available: vehicles.filter(v => v.status === 'available').length,
-    rented: vehicles.filter(v => v.status === 'rented').length,
+    rented: activeRentalsCount,
     maintenance: vehicles.filter(v => v.status === 'maintenance').length,
   }
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="spinner w-10 h-10 text-gray-400" />
+      <div className="flex items-center justify-center h-[60vh]">
+        <div className="relative">
+          <div className="w-12 h-12 rounded-full border-[3px] border-gray-200 dark:border-zinc-700" />
+          <div className="absolute inset-0 w-12 h-12 rounded-full border-[3px] border-transparent border-t-gray-900 dark:border-t-white animate-spin" />
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-8 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Автомобили</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Управление автопарком: {stats.total} авто
-          </p>
+      <header className="animate-slide-up">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Автопарк</p>
+            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white tracking-tight">
+              Автомобили
+            </h1>
+          </div>
+          {canEditVehicles && (
+            <button
+              onClick={() => {
+                setEditingVehicle(null)
+                setIsModalOpen(true)
+              }}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-semibold hover:bg-gray-800 dark:hover:bg-gray-100 transition-all active:scale-[0.98] shadow-lg shadow-gray-900/10 dark:shadow-white/10"
+            >
+              <PlusIcon className="w-4 h-4" />
+              Добавить авто
+            </button>
+          )}
         </div>
-        <button
-          onClick={() => {
-            setEditingVehicle(null)
-            setIsModalOpen(true)
-          }}
-          className="flex items-center px-4 py-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 text-gray-900 dark:text-white font-medium hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors shadow-sm"
-        >
-          <PlusIcon className="w-5 h-5 mr-2" />
-          Добавить авто
-        </button>
-      </div>
+      </header>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="flex flex-col items-center justify-center py-5 px-4 rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm animate-slide-up" style={{ animationDelay: '0ms' }}>
-          <span className="text-gray-600 dark:text-gray-400 mb-2">
-            <CarIcon className="w-5 h-5" />
-          </span>
-          <p className="text-2xl font-semibold text-gray-900 dark:text-white tracking-tight">{stats.total}</p>
-          <p className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-500 mt-1">Всего</p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '0ms' }}>
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-50/50 to-transparent dark:from-zinc-800/20 dark:to-transparent pointer-events-none" />
+          <div className="relative">
+            <span className="text-gray-400 dark:text-gray-500 mb-4 block"><CarIcon className="w-5 h-5" /></span>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{stats.total}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Всего</p>
+          </div>
         </div>
-        <div className="flex flex-col items-center justify-center py-5 px-4 rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm animate-slide-up" style={{ animationDelay: '50ms' }}>
-          <span className="text-gray-600 dark:text-gray-400 mb-2">
-            <CheckIcon className="w-5 h-5" />
-          </span>
-          <p className="text-2xl font-semibold text-gray-900 dark:text-white tracking-tight">{stats.available}</p>
-          <p className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-500 mt-1">Свободно</p>
+        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '50ms' }}>
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/50 to-transparent dark:from-emerald-900/10 dark:to-transparent pointer-events-none" />
+          <div className="relative">
+            <span className="text-emerald-500 dark:text-emerald-400 mb-4 block"><CheckIcon className="w-5 h-5" /></span>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{stats.available}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Свободно</p>
+          </div>
         </div>
-        <div className="flex flex-col items-center justify-center py-5 px-4 rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm animate-slide-up" style={{ animationDelay: '100ms' }}>
-          <span className="text-gray-600 dark:text-gray-400 mb-2">
-            <KeyIcon className="w-5 h-5" />
-          </span>
-          <p className="text-2xl font-semibold text-gray-900 dark:text-white tracking-tight">{stats.rented}</p>
-          <p className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-500 mt-1">В аренде</p>
+        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '100ms' }}>
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-50/50 to-transparent dark:from-zinc-800/10 dark:to-transparent pointer-events-none" />
+          <div className="relative">
+            <span className="text-gray-500 dark:text-gray-400 mb-4 block"><KeyIcon className="w-5 h-5" /></span>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{stats.rented}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">В аренде</p>
+          </div>
         </div>
-        <div className="flex flex-col items-center justify-center py-5 px-4 rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm animate-slide-up" style={{ animationDelay: '150ms' }}>
-          <span className="text-gray-600 dark:text-gray-400 mb-2">
-            <WrenchIcon className="w-5 h-5" />
-          </span>
-          <p className="text-2xl font-semibold text-gray-900 dark:text-white tracking-tight">{stats.maintenance}</p>
-          <p className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-500 mt-1">На ТО</p>
+        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '150ms' }}>
+          <div className="absolute inset-0 bg-gradient-to-br from-orange-50/50 to-transparent dark:from-orange-900/10 dark:to-transparent pointer-events-none" />
+          <div className="relative">
+            <span className="text-orange-500 dark:text-orange-400 mb-4 block"><WrenchIcon className="w-5 h-5" /></span>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{stats.maintenance}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">На ТО</p>
+          </div>
         </div>
       </div>
 
@@ -231,6 +254,8 @@ export default function VehiclesPage() {
               key={vehicle.id}
               vehicle={vehicle}
               index={index}
+              canEdit={canEditVehicles}
+              onView={() => setViewingVehicle(vehicle)}
               onEdit={() => {
                 setEditingVehicle(vehicle)
                 setIsModalOpen(true)
@@ -264,6 +289,20 @@ export default function VehiclesPage() {
           }}
         />
       )}
+
+      {/* View Detail Modal */}
+      {viewingVehicle && (
+        <VehicleDetailModal
+          vehicle={viewingVehicle}
+          canEdit={canEditVehicles}
+          onClose={() => setViewingVehicle(null)}
+          onEdit={() => {
+            setEditingVehicle(viewingVehicle)
+            setIsModalOpen(true)
+            setViewingVehicle(null)
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -271,19 +310,24 @@ export default function VehiclesPage() {
 function VehicleCard({
   vehicle,
   index,
+  canEdit = true,
+  onView,
   onEdit,
   onDelete,
   onOpenMetadata,
 }: {
   vehicle: Vehicle
   index: number
+  canEdit?: boolean
+  onView: () => void
   onEdit: () => void
   onDelete: () => void
   onOpenMetadata: () => void
 }) {
   return (
     <div
-      className="p-5 animate-slide-up rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm"
+      onClick={onView}
+      className="p-5 animate-slide-up rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm cursor-pointer hover:border-gray-200 dark:hover:border-zinc-700 hover:shadow-md transition-all"
       style={{ animationDelay: `${index * 50}ms` }}
     >
       {/* Header */}
@@ -346,28 +390,30 @@ function VehicleCard({
       )}
 
       {/* Actions */}
-      <div className="flex gap-2 pt-2 border-t border-gray-100 dark:border-zinc-800">
-        <button
-          onClick={onEdit}
-          className="flex-1 btn btn-secondary text-sm py-2"
-        >
-          <EditIcon className="w-4 h-4 mr-1.5" />
-          Изменить
-        </button>
-        <button
-          onClick={onOpenMetadata}
-          className="btn btn-ghost text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 px-3"
-          title="Настройки для сайта"
-        >
-          <GlobeIcon className="w-4 h-4" />
-        </button>
-        <button
-          onClick={onDelete}
-          className="btn btn-ghost text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 px-3"
-        >
-          <TrashIcon className="w-4 h-4" />
-        </button>
-      </div>
+      {canEdit && (
+        <div className="flex gap-2 pt-2 border-t border-gray-100 dark:border-zinc-800">
+          <button
+            onClick={(e) => { e.stopPropagation(); onEdit() }}
+            className="flex-1 btn btn-secondary text-sm py-2"
+          >
+            <EditIcon className="w-4 h-4 mr-1.5" />
+            Изменить
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onOpenMetadata() }}
+            className="btn btn-ghost text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-500/10 px-3"
+            title="Настройки для сайта"
+          >
+            <GlobeIcon className="w-4 h-4" />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete() }}
+            className="btn btn-ghost text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 px-3"
+          >
+            <TrashIcon className="w-4 h-4" />
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -512,7 +558,7 @@ function VehicleModal({
                   <label className="form-label required">Цвет</label>
                   <div className="flex gap-2">
                     <div
-                      className="w-12 h-[46px] rounded-xl border-2 border-gray-200 dark:border-gray-700 flex-shrink-0"
+                      className="w-12 h-[46px] rounded-xl border-2 border-gray-200 dark:border-zinc-700 flex-shrink-0"
                       style={{ backgroundColor: getColorHex(formData.color) }}
                     />
                     <input
@@ -683,6 +729,247 @@ function VehicleModal({
         </div>
       </div>
     </div>
+  )
+}
+
+function VehicleDetailModal({
+  vehicle,
+  canEdit = true,
+  onClose,
+  onEdit,
+}: {
+  vehicle: Vehicle
+  canEdit?: boolean
+  onClose: () => void
+  onEdit: () => void
+}) {
+  const [rentals, setRentals] = useState<Rental[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    fetchVehicleRentals()
+  }, [vehicle.id])
+
+  const fetchVehicleRentals = async () => {
+    try {
+      const response = await fetch('/api/rentals')
+      if (response.ok) {
+        const data = await response.json()
+        const vehicleRentals = data.filter((r: Rental) => r.vehicle?.id === vehicle.id)
+        setRentals(vehicleRentals)
+      }
+    } catch (error) {
+      console.error('Failed to fetch rentals:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    })
+  }
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('th-TH', {
+      style: 'currency',
+      currency: 'THB',
+      maximumFractionDigits: 0,
+    }).format(amount)
+  }
+
+  const rentalStatusLabels: Record<string, string> = {
+    active: 'Активна',
+    completed: 'Завершена',
+    cancelled: 'Отменена',
+  }
+
+  const rentalStatusColors: Record<string, string> = {
+    active: 'badge-success',
+    completed: 'badge-gray',
+    cancelled: 'badge-danger',
+  }
+
+  const totalRentals = rentals.length
+  const totalEarned = rentals.reduce((sum, r) => sum + (r.totalAmount || 0), 0)
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="modal-overlay" onClick={onClose} />
+      <div className="flex min-h-full items-center justify-center p-4">
+        <div className="modal-content relative z-10 w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-zinc-800">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-gray-100 dark:bg-zinc-800 flex items-center justify-center">
+                <CarIcon className="w-7 h-7 text-gray-500 dark:text-gray-400" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  {vehicle.brand} {vehicle.model}
+                </h2>
+                <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  <span className="font-mono">{vehicle.licensePlate}</span>
+                  <span className={clsx('badge', statusColors[vehicle.status])}>
+                    {statusLabels[vehicle.status]}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {canEdit && (
+                <button
+                  onClick={onEdit}
+                  className="p-2.5 rounded-xl bg-gray-50 dark:bg-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors"
+                >
+                  <EditIcon className="w-5 h-5 text-gray-500" />
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                className="p-2.5 rounded-xl bg-gray-50 dark:bg-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors"
+              >
+                <CloseIcon className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
+            {/* Stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="p-4 rounded-xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700">
+                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Год</p>
+                <p className="text-xl font-semibold text-gray-900 dark:text-white">{vehicle.year}</p>
+              </div>
+              <div className="p-4 rounded-xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700">
+                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Пробег</p>
+                <p className="text-xl font-semibold text-gray-900 dark:text-white">{vehicle.mileage?.toLocaleString()} км</p>
+              </div>
+              <div className="p-4 rounded-xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700">
+                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Всего аренд</p>
+                <p className="text-xl font-semibold text-gray-900 dark:text-white">{totalRentals}</p>
+              </div>
+              <div className="p-4 rounded-xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700">
+                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Заработано</p>
+                <p className="text-xl font-semibold text-gray-900 dark:text-white">{formatCurrency(totalEarned)}</p>
+              </div>
+            </div>
+
+            {/* Rates */}
+            {vehicle.rateMonthly > 0 && (
+              <div className="p-4 rounded-xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700">
+                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Тарифы</p>
+                <div className="flex flex-wrap gap-4">
+                  {vehicle.rateDaily > 0 && (
+                    <div>
+                      <span className="text-gray-400 dark:text-gray-500 text-sm">1 день:</span>
+                      <span className="ml-2 font-semibold text-gray-900 dark:text-white">฿{vehicle.rateDaily.toLocaleString()}</span>
+                    </div>
+                  )}
+                  {vehicle.rate7days > 0 && (
+                    <div>
+                      <span className="text-gray-400 dark:text-gray-500 text-sm">7 дней:</span>
+                      <span className="ml-2 font-semibold text-gray-900 dark:text-white">฿{vehicle.rate7days.toLocaleString()}</span>
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-gray-400 dark:text-gray-500 text-sm">Месяц:</span>
+                    <span className="ml-2 font-semibold text-gray-900 dark:text-white">฿{vehicle.rateMonthly.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Rental History */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                <HistoryIcon className="w-4 h-4 text-gray-400" />
+                История аренд
+              </h3>
+
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="w-6 h-6 border-2 border-gray-300 dark:border-zinc-600 border-t-gray-600 dark:border-t-zinc-300 rounded-full animate-spin" />
+                </div>
+              ) : rentals.length === 0 ? (
+                <div className="text-center py-8 rounded-xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700">
+                  <UserIcon className="w-10 h-10 text-gray-300 dark:text-zinc-600 mx-auto mb-2" />
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Нет истории аренд</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {rentals.map((rental) => (
+                    <div
+                      key={rental.id}
+                      className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 flex items-center justify-center">
+                          <UserIcon className="w-5 h-5 text-gray-400" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            {rental.client?.fullName || 'Неизвестный клиент'}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {formatDate(rental.startDate)} — {formatDate(rental.plannedEndDate)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <p className="font-semibold text-gray-900 dark:text-white">
+                          {formatCurrency(rental.totalAmount || 0)}
+                        </p>
+                        <span className={clsx('badge', rentalStatusColors[rental.status])}>
+                          {rentalStatusLabels[rental.status]}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Notes */}
+            {vehicle.notes && (
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Заметки</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 p-4 rounded-xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700">
+                  {vehicle.notes}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="p-4 border-t border-gray-100 dark:border-zinc-800">
+            <button onClick={onClose} className="w-full btn btn-secondary py-3">
+              Закрыть
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function HistoryIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
+
+function UserIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+    </svg>
   )
 }
 

@@ -15,7 +15,7 @@ const statusColors: Record<BookingRequestStatus, string> = {
   pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
   confirmed: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
   rejected: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
-  completed: 'bg-gray-100 text-gray-800 dark:bg-gray-700/30 dark:text-gray-400',
+  completed: 'bg-gray-100 text-gray-800 dark:bg-zinc-700/30 dark:text-gray-400',
 }
 
 // Icons
@@ -194,8 +194,11 @@ export default function BookingRequestsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-10 h-10 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
+      <div className="flex items-center justify-center h-[60vh]">
+        <div className="relative">
+          <div className="w-12 h-12 rounded-full border-[3px] border-gray-200 dark:border-zinc-700" />
+          <div className="absolute inset-0 w-12 h-12 rounded-full border-[3px] border-transparent border-t-gray-900 dark:border-t-white animate-spin" />
+        </div>
       </div>
     )
   }
@@ -207,7 +210,7 @@ export default function BookingRequestsPage() {
           <p className="text-red-500 mb-4">{error}</p>
           <button
             onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600"
+            className="px-5 py-2.5 rounded-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-semibold hover:bg-gray-800 dark:hover:bg-gray-100 transition-all"
           >
             Обновить
           </button>
@@ -217,63 +220,51 @@ export default function BookingRequestsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-8 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900 dark:text-white">
-            Заявки с сайта
-          </h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
-            Управление заявками на бронирование
-          </p>
+      <header className="animate-slide-up">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Бронирования</p>
+            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white tracking-tight">
+              Заявки с сайта
+            </h1>
+          </div>
         </div>
-      </div>
+      </header>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-xl p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-yellow-100 dark:bg-yellow-800/50 flex items-center justify-center">
-              <ClockIcon className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
-            </div>
-            <div>
-              <p className="text-2xl font-semibold text-yellow-700 dark:text-yellow-400">{stats.pending}</p>
-              <p className="text-xs text-yellow-600 dark:text-yellow-500">Ожидают</p>
-            </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-yellow-200/60 dark:border-yellow-900/30 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '0ms' }}>
+          <div className="absolute inset-0 bg-gradient-to-br from-yellow-50/50 to-transparent dark:from-yellow-900/10 dark:to-transparent pointer-events-none" />
+          <div className="relative">
+            <span className="text-yellow-500 dark:text-yellow-400 mb-4 block"><ClockIcon className="w-5 h-5" /></span>
+            <p className="text-3xl font-bold text-yellow-600 dark:text-yellow-400 tracking-tight">{stats.pending}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Ожидают</p>
           </div>
         </div>
-        <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-800/50 flex items-center justify-center">
-              <CheckIcon className="w-5 h-5 text-green-600 dark:text-green-400" />
-            </div>
-            <div>
-              <p className="text-2xl font-semibold text-green-700 dark:text-green-400">{stats.confirmed}</p>
-              <p className="text-xs text-green-600 dark:text-green-500">Подтверждено</p>
-            </div>
+        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '50ms' }}>
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/50 to-transparent dark:from-emerald-900/10 dark:to-transparent pointer-events-none" />
+          <div className="relative">
+            <span className="text-emerald-500 dark:text-emerald-400 mb-4 block"><CheckIcon className="w-5 h-5" /></span>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{stats.confirmed}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Подтверждено</p>
           </div>
         </div>
-        <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-red-100 dark:bg-red-800/50 flex items-center justify-center">
-              <XIcon className="w-5 h-5 text-red-600 dark:text-red-400" />
-            </div>
-            <div>
-              <p className="text-2xl font-semibold text-red-700 dark:text-red-400">{stats.rejected}</p>
-              <p className="text-xs text-red-600 dark:text-red-500">Отклонено</p>
-            </div>
+        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '100ms' }}>
+          <div className="absolute inset-0 bg-gradient-to-br from-red-50/50 to-transparent dark:from-red-900/10 dark:to-transparent pointer-events-none" />
+          <div className="relative">
+            <span className="text-red-500 dark:text-red-400 mb-4 block"><XIcon className="w-5 h-5" /></span>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{stats.rejected}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Отклонено</p>
           </div>
         </div>
-        <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700/50 flex items-center justify-center">
-              <CarIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-            </div>
-            <div>
-              <p className="text-2xl font-semibold text-gray-700 dark:text-gray-300">{stats.total}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-500">Всего</p>
-            </div>
+        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '150ms' }}>
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-50/50 to-transparent dark:from-zinc-800/20 dark:to-transparent pointer-events-none" />
+          <div className="relative">
+            <span className="text-gray-400 dark:text-gray-500 mb-4 block"><CarIcon className="w-5 h-5" /></span>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{stats.total}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Всего</p>
           </div>
         </div>
       </div>
@@ -287,8 +278,8 @@ export default function BookingRequestsPage() {
             className={clsx(
               'px-4 py-2 rounded-lg text-sm font-medium transition-colors',
               filterStatus === status
-                ? 'bg-primary-500 text-white'
-                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900'
+                : 'bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-zinc-700'
             )}
           >
             {status === 'all' ? 'Все' : statusLabels[status]}
@@ -307,14 +298,14 @@ export default function BookingRequestsPage() {
           filteredRequests.map((request) => (
             <div
               key={request.id}
-              className="bg-white dark:bg-gray-800/50 rounded-2xl border border-gray-200/60 dark:border-gray-700/60 overflow-hidden"
+              className="bg-white dark:bg-zinc-800/50 rounded-2xl border border-gray-200/60 dark:border-zinc-700/60 overflow-hidden"
             >
               <div className="p-4 sm:p-6">
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
                   <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center flex-shrink-0">
-                      <CarIcon className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+                    <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-zinc-800 flex items-center justify-center flex-shrink-0">
+                      <CarIcon className="w-6 h-6 text-gray-600 dark:text-gray-400" />
                     </div>
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -348,7 +339,7 @@ export default function BookingRequestsPage() {
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <PhoneIcon className="w-4 h-4 text-gray-400" />
-                    <a href={`tel:${request.customerPhone}`} className="text-primary-600 dark:text-primary-400 hover:underline">
+                    <a href={`tel:${request.customerPhone}`} className="text-gray-900 dark:text-white font-medium hover:underline">
                       {request.customerPhone}
                     </a>
                   </div>
@@ -368,7 +359,7 @@ export default function BookingRequestsPage() {
 
                 {/* Actions */}
                 {request.status === 'pending' && (
-                  <div className="flex gap-3 pt-4 border-t border-gray-100 dark:border-gray-700/50">
+                  <div className="flex gap-3 pt-4 border-t border-gray-100 dark:border-zinc-700/50">
                     <button
                       onClick={() => {
                         setSelectedRequest(request)
@@ -392,7 +383,7 @@ export default function BookingRequestsPage() {
                     </button>
                     <a
                       href={`mailto:${request.customerEmail}`}
-                      className="flex-1 sm:flex-none px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex items-center justify-center gap-2"
+                      className="flex-1 sm:flex-none px-4 py-2 bg-gray-100 dark:bg-zinc-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex items-center justify-center gap-2"
                     >
                       <MailIcon className="w-4 h-4" />
                       Написать
@@ -413,25 +404,25 @@ export default function BookingRequestsPage() {
       {/* Confirm Modal */}
       {isModalOpen && selectedRequest && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl max-w-lg w-full p-6">
+          <div className="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl max-w-lg w-full p-6">
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
               Подтвердить заявку
             </h3>
 
             <div className="space-y-4 mb-6">
-              <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+              <div className="p-4 bg-gray-50 dark:bg-zinc-700/50 rounded-xl">
                 <p className="font-medium text-gray-900 dark:text-white">
                   {selectedRequest.vehicle?.brand} {selectedRequest.vehicle?.model}
                 </p>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   {formatDate(selectedRequest.startDate)} — {formatDate(selectedRequest.endDate)}
                 </p>
-                <p className="text-lg font-semibold text-primary-600 dark:text-primary-400 mt-2">
+                <p className="text-lg font-semibold text-gray-900 dark:text-white mt-2">
                   {formatPrice(selectedRequest.totalPrice)}
                 </p>
               </div>
 
-              <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+              <div className="p-4 bg-gray-50 dark:bg-zinc-700/50 rounded-xl">
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Клиент</p>
                 <p className="font-medium text-gray-900 dark:text-white">
                   {selectedRequest.customerFirstName} {selectedRequest.customerLastName}
@@ -455,7 +446,7 @@ export default function BookingRequestsPage() {
                   setSelectedRequest(null)
                 }}
                 disabled={isProcessing}
-                className="flex-1 px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
+                className="flex-1 px-4 py-3 bg-gray-100 dark:bg-zinc-700 text-gray-600 dark:text-gray-300 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
               >
                 Отмена
               </button>

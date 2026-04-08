@@ -62,15 +62,15 @@ function CustomSelect({
         onClick={() => setIsOpen(!isOpen)}
         className={clsx(
           'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200',
-          'bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm',
-          'border border-gray-200/60 dark:border-gray-700/60',
-          'hover:border-primary-300 dark:hover:border-primary-600',
-          'focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400',
-          isOpen && 'ring-2 ring-primary-500/20 border-primary-400'
+          'bg-white/80 dark:bg-zinc-800/80 backdrop-blur-sm',
+          'border border-gray-200/60 dark:border-zinc-700/60',
+          'hover:border-gray-400 dark:hover:border-zinc-500',
+          'focus:outline-none focus:ring-2 focus:ring-gray-200 dark:focus:ring-zinc-700 focus:border-gray-400',
+          isOpen && 'ring-2 ring-gray-200 dark:ring-zinc-700 border-gray-400 dark:border-zinc-500'
         )}
       >
         {icon && (
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center flex-shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-gray-100 to-gray-200 dark:from-zinc-700 dark:to-zinc-800 flex items-center justify-center flex-shrink-0">
             {icon}
           </div>
         )}
@@ -98,8 +98,8 @@ function CustomSelect({
             border: '1px solid rgba(255,255,255,0.3)',
           }}
         >
-          <div className="dark:bg-gray-900/95">
-            <div className="p-3 border-b border-gray-200/50 dark:border-gray-700/50">
+          <div className="dark:bg-zinc-900/95">
+            <div className="p-3 border-b border-gray-200/50 dark:border-zinc-700/50">
               <div className="relative">
                 <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
@@ -108,7 +108,7 @@ function CustomSelect({
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder={searchPlaceholder}
-                  className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-gray-100/80 dark:bg-gray-800/80 border-0 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                  className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-gray-100/80 dark:bg-zinc-800/80 border-0 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-zinc-600"
                 />
               </div>
             </div>
@@ -131,25 +131,25 @@ function CustomSelect({
                     className={clsx(
                       'w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-150',
                       option.value === value
-                        ? 'bg-primary-50 dark:bg-primary-900/30'
+                        ? 'bg-gray-100 dark:bg-zinc-800'
                         : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
                     )}
                   >
                     <div className={clsx(
                       'w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all',
                       option.value === value
-                        ? 'border-primary-500 bg-primary-500'
-                        : 'border-gray-300 dark:border-gray-600'
+                        ? 'border-gray-900 dark:border-white bg-gray-900 dark:bg-white'
+                        : 'border-gray-300 dark:border-zinc-600'
                     )}>
                       {option.value === value && (
-                        <CheckSmallIcon className="w-3 h-3 text-white" />
+                        <CheckSmallIcon className="w-3 h-3 text-white dark:text-gray-900" />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className={clsx(
                         'font-medium truncate',
                         option.value === value
-                          ? 'text-primary-600 dark:text-primary-400'
+                          ? 'text-gray-900 dark:text-white'
                           : 'text-gray-900 dark:text-white'
                       )}>
                         {option.label}
@@ -190,6 +190,7 @@ export default function MaintenancePage() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingMaintenance, setEditingMaintenance] = useState<Maintenance | null>(null)
   const [vehicleFilter, setVehicleFilter] = useState<number | 'all'>('all')
 
   useEffect(() => {
@@ -214,8 +215,13 @@ export default function MaintenancePage() {
 
   const handleSave = async (data: MaintenanceFormData) => {
     try {
-      const response = await fetch('/api/maintenance', {
-        method: 'POST',
+      const url = editingMaintenance
+        ? `/api/maintenance/${editingMaintenance.id}`
+        : '/api/maintenance'
+      const method = editingMaintenance ? 'PUT' : 'POST'
+
+      const response = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
@@ -223,9 +229,54 @@ export default function MaintenancePage() {
       if (response.ok) {
         fetchData()
         setIsModalOpen(false)
+        setEditingMaintenance(null)
       }
     } catch (error) {
       console.error('Failed to save maintenance record:', error)
+    }
+  }
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('Вы уверены, что хотите удалить эту запись?')) return
+
+    try {
+      const response = await fetch(`/api/maintenance/${id}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        fetchData()
+        setIsModalOpen(false)
+        setEditingMaintenance(null)
+      }
+    } catch (error) {
+      console.error('Failed to delete maintenance record:', error)
+    }
+  }
+
+  const handleCardClick = (record: Maintenance) => {
+    setEditingMaintenance(record)
+    setIsModalOpen(true)
+  }
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false)
+    setEditingMaintenance(null)
+  }
+
+  const handleUpdateVehicleStatus = async (vehicleId: number, newStatus: string) => {
+    try {
+      const response = await fetch(`/api/vehicles/${vehicleId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      })
+
+      if (response.ok) {
+        fetchData()
+      }
+    } catch (error) {
+      console.error('Failed to update vehicle status:', error)
     }
   }
 
@@ -262,63 +313,72 @@ export default function MaintenancePage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center h-[60vh]">
         <div className="relative">
-          <div className="w-12 h-12 rounded-full border-4 border-primary-200 dark:border-primary-900" />
-          <div className="absolute inset-0 w-12 h-12 rounded-full border-4 border-transparent border-t-primary-500 animate-spin" />
+          <div className="w-12 h-12 rounded-full border-[3px] border-gray-200 dark:border-zinc-700" />
+          <div className="absolute inset-0 w-12 h-12 rounded-full border-[3px] border-transparent border-t-gray-900 dark:border-t-white animate-spin" />
         </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-8 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Обслуживание</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Записи о техобслуживании и ремонте
-          </p>
+      <header className="animate-slide-up">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Техника</p>
+            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white tracking-tight">
+              Обслуживание
+            </h1>
+          </div>
+          <button
+            onClick={() => {
+              setEditingMaintenance(null)
+              setIsModalOpen(true)
+            }}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-semibold hover:bg-gray-800 dark:hover:bg-gray-100 transition-all active:scale-[0.98] shadow-lg shadow-gray-900/10 dark:shadow-white/10"
+          >
+            <PlusIcon className="w-4 h-4" />
+            Добавить запись
+          </button>
         </div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="btn btn-primary"
-        >
-          <PlusIcon className="w-5 h-5 mr-2" />
-          Добавить запись
-        </button>
-      </div>
+      </header>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
-        <div className="flex flex-col items-center justify-center py-5 px-4 rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm animate-slide-up" style={{ animationDelay: '0ms' }}>
-          <span className="text-gray-600 dark:text-gray-400 mb-2">
-            <WrenchIcon className="w-5 h-5" />
-          </span>
-          <p className="text-2xl font-semibold text-gray-900 dark:text-white tracking-tight">{stats.total}</p>
-          <p className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-500 mt-1">Всего записей</p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '0ms' }}>
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-50/50 to-transparent dark:from-zinc-800/20 dark:to-transparent pointer-events-none" />
+          <div className="relative">
+            <span className="text-gray-400 dark:text-gray-500 mb-4 block"><WrenchIcon className="w-5 h-5" /></span>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{stats.total}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Всего записей</p>
+          </div>
         </div>
-        <div className="flex flex-col items-center justify-center py-5 px-4 rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm animate-slide-up" style={{ animationDelay: '50ms' }}>
-          <span className="text-gray-600 dark:text-gray-400 mb-2">
-            <CurrencyIcon className="w-5 h-5" />
-          </span>
-          <p className="text-lg font-semibold text-gray-900 dark:text-white tracking-tight">{formatCurrency(stats.totalCost)}</p>
-          <p className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-500 mt-1">Всего расходов</p>
+        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '50ms' }}>
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-50/50 to-transparent dark:from-purple-900/10 dark:to-transparent pointer-events-none" />
+          <div className="relative">
+            <span className="text-purple-500 dark:text-purple-400 mb-4 block"><CurrencyIcon className="w-5 h-5" /></span>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">{formatCurrency(stats.totalCost)}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Всего расходов</p>
+          </div>
         </div>
-        <div className="flex flex-col items-center justify-center py-5 px-4 rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm animate-slide-up" style={{ animationDelay: '100ms' }}>
-          <span className="text-gray-600 dark:text-gray-400 mb-2">
-            <CalendarIcon className="w-5 h-5" />
-          </span>
-          <p className="text-2xl font-semibold text-gray-900 dark:text-white tracking-tight">{stats.thisMonth}</p>
-          <p className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-500 mt-1">В этом месяце</p>
+        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '100ms' }}>
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-50/50 to-transparent dark:from-zinc-800/10 dark:to-transparent pointer-events-none" />
+          <div className="relative">
+            <span className="text-gray-500 dark:text-gray-400 mb-4 block"><CalendarIcon className="w-5 h-5" /></span>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{stats.thisMonth}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">В этом месяце</p>
+          </div>
         </div>
-        <div className="flex flex-col items-center justify-center py-5 px-4 rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 shadow-sm animate-slide-up" style={{ animationDelay: '150ms' }}>
-          <span className="text-amber-500 dark:text-amber-400 mb-2">
-            <ToolIcon className="w-5 h-5" />
-          </span>
-          <p className="text-2xl font-semibold text-amber-600 dark:text-amber-400 tracking-tight">{stats.inMaintenance}</p>
-          <p className="text-[10px] font-medium uppercase tracking-wider text-amber-500 dark:text-amber-500 mt-1">Сейчас на ТО</p>
+        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-orange-200/60 dark:border-orange-900/30 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '150ms' }}>
+          <div className="absolute inset-0 bg-gradient-to-br from-orange-50/50 to-transparent dark:from-orange-900/10 dark:to-transparent pointer-events-none" />
+          <div className="relative">
+            <span className="text-orange-500 dark:text-orange-400 mb-4 block"><ToolIcon className="w-5 h-5" /></span>
+            <p className="text-3xl font-bold text-orange-600 dark:text-orange-400 tracking-tight">{stats.inMaintenance}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Сейчас на ТО</p>
+          </div>
         </div>
       </div>
 
@@ -356,6 +416,13 @@ export default function MaintenancePage() {
                     {vehicle.notes}
                   </p>
                 )}
+                <button
+                  onClick={() => handleUpdateVehicleStatus(vehicle.id, 'available')}
+                  className="mt-3 w-full py-2 px-3 rounded-xl text-sm font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors flex items-center justify-center gap-2"
+                >
+                  <CheckIcon className="w-4 h-4" />
+                  Снять с ТО
+                </button>
               </div>
             ))}
           </div>
@@ -396,7 +463,8 @@ export default function MaintenancePage() {
           {filteredRecords.map((record, index) => (
             <div
               key={record.id}
-              className="p-5 animate-slide-up rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm"
+              onClick={() => handleCardClick(record)}
+              className="p-5 animate-slide-up rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm cursor-pointer hover:border-gray-300 dark:hover:border-zinc-600 hover:shadow-md transition-all"
               style={{ animationDelay: `${200 + index * 50}ms` }}
             >
               <div className="flex flex-col sm:flex-row sm:items-center gap-4">
@@ -458,8 +526,10 @@ export default function MaintenancePage() {
       {isModalOpen && (
         <MaintenanceModal
           vehicles={vehicles}
-          onClose={() => setIsModalOpen(false)}
+          maintenance={editingMaintenance}
+          onClose={handleCloseModal}
           onSave={handleSave}
+          onDelete={handleDelete}
         />
       )}
     </div>
@@ -468,31 +538,52 @@ export default function MaintenancePage() {
 
 function MaintenanceModal({
   vehicles,
+  maintenance,
   onClose,
   onSave,
+  onDelete,
 }: {
   vehicles: Vehicle[]
+  maintenance: Maintenance | null
   onClose: () => void
   onSave: (data: MaintenanceFormData) => void
+  onDelete: (id: number) => void
 }) {
-  const [formData, setFormData] = useState<MaintenanceFormData>({
-    vehicleId: vehicles[0]?.id ?? 0,
-    type: 'scheduled',
-    date: new Date().toISOString().split('T')[0],
-    mileage: vehicles[0]?.mileage ?? 0,
-    cost: 0,
-    location: '',
-    description: '',
+  const isEditing = maintenance !== null
+
+  const [formData, setFormData] = useState<MaintenanceFormData>(() => {
+    if (maintenance) {
+      return {
+        vehicleId: maintenance.vehicleId,
+        type: maintenance.type,
+        date: maintenance.date.split('T')[0],
+        mileage: maintenance.mileage,
+        cost: maintenance.cost,
+        location: maintenance.location,
+        description: maintenance.description,
+      }
+    }
+    return {
+      vehicleId: vehicles[0]?.id ?? 0,
+      type: 'scheduled',
+      date: new Date().toISOString().split('T')[0],
+      mileage: vehicles[0]?.mileage ?? 0,
+      cost: 0,
+      location: '',
+      description: '',
+    }
   })
 
   const selectedVehicle = vehicles.find(v => v.id === formData.vehicleId)
 
   useEffect(() => {
-    const vehicle = vehicles.find(v => v.id === formData.vehicleId)
-    if (vehicle) {
-      setFormData(prev => ({ ...prev, mileage: vehicle.mileage }))
+    if (!isEditing) {
+      const vehicle = vehicles.find(v => v.id === formData.vehicleId)
+      if (vehicle) {
+        setFormData(prev => ({ ...prev, mileage: vehicle.mileage }))
+      }
     }
-  }, [formData.vehicleId, vehicles])
+  }, [formData.vehicleId, vehicles, isEditing])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -511,8 +602,12 @@ function MaintenanceModal({
                 <WrenchIcon className="w-6 h-6 text-gray-400 dark:text-gray-500" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Новая запись ТО</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Добавление записи о техобслуживании</p>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {isEditing ? 'Редактирование записи' : 'Новая запись ТО'}
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {isEditing ? 'Изменение записи о техобслуживании' : 'Добавление записи о техобслуживании'}
+                </p>
               </div>
             </div>
             <button
@@ -547,8 +642,8 @@ function MaintenanceModal({
                   icon={<CarIcon className="w-4 h-4 text-gray-500 dark:text-gray-400" />}
                 />
                 {selectedVehicle && (
-                  <div className="mt-2 flex items-center gap-4 p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800">
-                    <div className="text-xs text-blue-600 dark:text-blue-400">
+                  <div className="mt-2 flex items-center gap-4 p-3 rounded-xl bg-gray-50 dark:bg-zinc-800/30 border border-gray-200 dark:border-zinc-700">
+                    <div className="text-xs text-gray-600 dark:text-gray-400">
                       <span className="font-medium">Пробег:</span> {selectedVehicle.mileage?.toLocaleString()} км
                     </div>
                   </div>
@@ -649,12 +744,21 @@ function MaintenanceModal({
 
           {/* Footer */}
           <div className="modal-footer flex gap-3">
+            {isEditing && maintenance && (
+              <button
+                type="button"
+                onClick={() => onDelete(maintenance.id)}
+                className="btn py-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-800"
+              >
+                <TrashIcon className="w-5 h-5" />
+              </button>
+            )}
             <button type="button" onClick={onClose} className="flex-1 btn btn-secondary py-3">
               Отмена
             </button>
             <button onClick={handleSubmit} className="flex-1 btn btn-primary py-3">
               <CheckIcon className="w-5 h-5 mr-2" />
-              Добавить запись
+              {isEditing ? 'Сохранить' : 'Добавить запись'}
             </button>
           </div>
         </div>
@@ -801,6 +905,14 @@ function ToolIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437l1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008z" />
+    </svg>
+  )
+}
+
+function TrashIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
     </svg>
   )
 }

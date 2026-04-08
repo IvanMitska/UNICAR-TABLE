@@ -76,7 +76,7 @@ export default function Select({ value, onChange, options, placeholder = 'Выб
               )}
             >
               <span className="w-4">
-                {option.value === value && <CheckIcon className="w-4 h-4 text-primary-500" />}
+                {option.value === value && <CheckIcon className="w-4 h-4 text-gray-900 dark:text-white" />}
               </span>
               {option.label}
             </button>

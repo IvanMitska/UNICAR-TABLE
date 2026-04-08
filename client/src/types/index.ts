@@ -79,8 +79,8 @@ export interface ClientFormData {
 }
 
 // Rental types
-export type RentalStatus = 'active' | 'completed' | 'cancelled'
-export type RateType = 'hourly' | 'daily' | 'monthly'
+export type RentalStatus = 'active' | 'completed' | 'cancelled' | 'overdue'
+export type RateType = 'hourly' | 'daily' | '3days' | '7days' | 'monthly'
 export type PaymentMethod = 'cash' | 'card' | 'transfer'
 export type PaymentStatus = 'paid' | 'partial' | 'unpaid'
 
@@ -108,6 +108,8 @@ export interface Rental {
   notes: string | null
   status: RentalStatus
   createdAt: string
+  createdBy: number | null
+  createdByName: string | null
   // Joined fields
   vehicle?: Vehicle
   client?: Client
@@ -260,10 +262,12 @@ export interface Notification {
 export interface DashboardStats {
   activeRentals: number
   availableVehicles: number
+  maintenanceVehicles: number
   monthlyIncome: number
   nextReturn: {
     rental: Rental
     hoursRemaining: number
+    vehicleName?: string
   } | null
 }
 

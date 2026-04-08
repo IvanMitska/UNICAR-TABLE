@@ -225,7 +225,7 @@ export default function SearchBar() {
                 >
                   <div className={clsx(
                     'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0',
-                    result.type === 'vehicle' && 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
+                    result.type === 'vehicle' && 'bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-400',
                     result.type === 'client' && 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
                     result.type === 'rental' && 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
                   )}>

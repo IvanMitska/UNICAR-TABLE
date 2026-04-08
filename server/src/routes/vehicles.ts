@@ -150,11 +150,13 @@ router.put('/:id', async (req: Request, res: Response) => {
   } = req.body
 
   try {
-    const existing = await pool.query('SELECT * FROM vehicles WHERE id = $1', [id])
+    const existing = await pool.query<VehicleRow>('SELECT * FROM vehicles WHERE id = $1', [id])
 
     if (existing.rows.length === 0) {
       return res.status(404).json({ error: 'Vehicle not found' })
     }
+
+    const current = existing.rows[0]
 
     const result = await pool.query<VehicleRow>(`
       UPDATE vehicles SET
@@ -166,23 +168,23 @@ router.put('/:id', async (req: Request, res: Response) => {
       WHERE id = $18
       RETURNING *
     `, [
-      brand,
-      model,
-      licensePlate,
-      vin || null,
-      year,
-      color,
-      fuelType,
-      mileage,
-      status,
-      rateDaily || 0,
-      rate3days || 0,
-      rate7days || 0,
-      rateMonthly || 0,
-      insuranceExpiry || null,
-      inspectionExpiry || null,
-      photoUrl || null,
-      notes || null,
+      brand ?? current.brand,
+      model ?? current.model,
+      licensePlate ?? current.license_plate,
+      vin !== undefined ? (vin || null) : current.vin,
+      year ?? current.year,
+      color ?? current.color,
+      fuelType ?? current.fuel_type,
+      mileage ?? current.mileage,
+      status ?? current.status,
+      rateDaily !== undefined ? (rateDaily || 0) : current.rate_daily,
+      rate3days !== undefined ? (rate3days || 0) : current.rate_3days,
+      rate7days !== undefined ? (rate7days || 0) : current.rate_7days,
+      rateMonthly !== undefined ? (rateMonthly || 0) : current.rate_monthly,
+      insuranceExpiry !== undefined ? (insuranceExpiry || null) : current.insurance_expiry,
+      inspectionExpiry !== undefined ? (inspectionExpiry || null) : current.inspection_expiry,
+      photoUrl !== undefined ? (photoUrl || null) : current.photo_url,
+      notes !== undefined ? (notes || null) : current.notes,
       id
     ])
 

@@ -103,4 +103,98 @@ router.post('/', async (req: Request, res: Response) => {
   }
 })
 
+// Update maintenance record
+router.put('/:id', async (req: Request, res: Response) => {
+  const { id } = req.params
+  const {
+    vehicleId,
+    type,
+    date,
+    mileage,
+    cost,
+    location,
+    description,
+    nextMaintenanceMileage,
+    nextMaintenanceDate,
+  } = req.body
+
+  if (!vehicleId || !type || !date || mileage === undefined || cost === undefined || !location || !description) {
+    return res.status(400).json({ error: 'Required fields missing' })
+  }
+
+  const client = await pool.connect()
+
+  try {
+    await client.query('BEGIN')
+
+    const result = await client.query(`
+      UPDATE maintenance SET
+        vehicle_id = $1,
+        type = $2,
+        date = $3,
+        mileage = $4,
+        cost = $5,
+        location = $6,
+        description = $7,
+        next_maintenance_mileage = $8,
+        next_maintenance_date = $9,
+        updated_at = NOW()
+      WHERE id = $10
+      RETURNING *
+    `, [
+      vehicleId,
+      type,
+      date,
+      mileage,
+      cost,
+      location,
+      description,
+      nextMaintenanceMileage || null,
+      nextMaintenanceDate || null,
+      id
+    ])
+
+    if (result.rows.length === 0) {
+      await client.query('ROLLBACK')
+      return res.status(404).json({ error: 'Maintenance record not found' })
+    }
+
+    // Update vehicle mileage if higher
+    await client.query(`
+      UPDATE vehicles SET mileage = GREATEST(mileage, $1), updated_at = NOW() WHERE id = $2
+    `, [mileage, vehicleId])
+
+    await client.query('COMMIT')
+
+    res.json(toCamelCase(result.rows[0] as Record<string, unknown>))
+  } catch (error) {
+    await client.query('ROLLBACK')
+    console.error('Update maintenance error:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  } finally {
+    client.release()
+  }
+})
+
+// Delete maintenance record
+router.delete('/:id', async (req: Request, res: Response) => {
+  const { id } = req.params
+
+  try {
+    const result = await pool.query(
+      'DELETE FROM maintenance WHERE id = $1 RETURNING *',
+      [id]
+    )
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Maintenance record not found' })
+    }
+
+    res.json({ success: true })
+  } catch (error) {
+    console.error('Delete maintenance error:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
 export default router

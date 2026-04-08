@@ -188,8 +188,8 @@ export default function VehicleMetadataEditor({
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-zinc-800">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center">
-                <GlobeIcon className="w-6 h-6 text-indigo-500" />
+              <div className="w-12 h-12 rounded-2xl bg-gray-100 dark:bg-zinc-800 flex items-center justify-center">
+                <GlobeIcon className="w-6 h-6 text-gray-500 dark:text-gray-400" />
               </div>
               <div>
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">

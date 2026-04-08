@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { pool, toCamelCase } from '../db/database.js'
+import { getRentalPriceInfo } from '../utils/pricing.js'
 
 const router = Router()
 
@@ -9,10 +10,12 @@ router.get('/', async (_req: Request, res: Response) => {
     const result = await pool.query(`
       SELECT r.*,
         v.brand as vehicle_brand, v.model as vehicle_model, v.license_plate as vehicle_license_plate,
-        c.full_name as client_full_name, c.phone as client_phone
+        c.full_name as client_full_name, c.phone as client_phone,
+        u.full_name as created_by_name
       FROM rentals r
       LEFT JOIN vehicles v ON r.vehicle_id = v.id
       LEFT JOIN clients c ON r.client_id = c.id
+      LEFT JOIN users u ON r.created_by = u.id
       ORDER BY r.created_at DESC
     `)
 
@@ -29,6 +32,7 @@ router.get('/', async (_req: Request, res: Response) => {
         fullName: r.client_full_name,
         phone: r.client_phone,
       },
+      createdByName: r.created_by_name || null,
     }))
 
     res.json(rentals)
@@ -44,10 +48,12 @@ router.get('/active', async (_req: Request, res: Response) => {
     const result = await pool.query(`
       SELECT r.*,
         v.brand as vehicle_brand, v.model as vehicle_model, v.license_plate as vehicle_license_plate,
-        c.full_name as client_full_name, c.phone as client_phone
+        c.full_name as client_full_name, c.phone as client_phone,
+        u.full_name as created_by_name
       FROM rentals r
       LEFT JOIN vehicles v ON r.vehicle_id = v.id
       LEFT JOIN clients c ON r.client_id = c.id
+      LEFT JOIN users u ON r.created_by = u.id
       WHERE r.status = 'active'
       ORDER BY r.planned_end_date ASC
     `)
@@ -65,6 +71,7 @@ router.get('/active', async (_req: Request, res: Response) => {
         fullName: r.client_full_name,
         phone: r.client_phone,
       },
+      createdByName: r.created_by_name || null,
     }))
 
     res.json(rentals)
@@ -80,10 +87,12 @@ router.get('/:id', async (req: Request, res: Response) => {
     const result = await pool.query(`
       SELECT r.*,
         v.brand as vehicle_brand, v.model as vehicle_model, v.license_plate as vehicle_license_plate,
-        c.full_name as client_full_name, c.phone as client_phone
+        c.full_name as client_full_name, c.phone as client_phone,
+        u.full_name as created_by_name
       FROM rentals r
       LEFT JOIN vehicles v ON r.vehicle_id = v.id
       LEFT JOIN clients c ON r.client_id = c.id
+      LEFT JOIN users u ON r.created_by = u.id
       WHERE r.id = $1
     `, [req.params.id])
 
@@ -105,6 +114,7 @@ router.get('/:id', async (req: Request, res: Response) => {
         fullName: r.client_full_name,
         phone: r.client_phone,
       },
+      createdByName: r.created_by_name || null,
     }
 
     res.json(rental)
@@ -153,31 +163,26 @@ router.post('/', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Vehicle is not available' })
     }
 
-    // Calculate total amount
+    // Calculate pricing using smooth discount grid
+    // rateAmount is the BASE daily price (full price for 1 day)
     const start = new Date(startDate)
     const end = new Date(plannedEndDate)
-    let totalAmount = 0
+    const days = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)))
 
-    if (rateType === 'hourly') {
-      const hours = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60))
-      totalAmount = hours * rateAmount
-    } else if (rateType === 'daily') {
-      const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
-      totalAmount = days * rateAmount
-    } else if (rateType === 'monthly') {
-      const months = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30))
-      totalAmount = months * rateAmount
-    }
+    // Get daily rate with discount and total price
+    const priceInfo = getRentalPriceInfo(rateAmount, days)
+    const totalAmount = priceInfo.totalPrice
 
     await client.query('BEGIN')
 
-    // Create rental
+    // Create rental with created_by tracking
+    const userId = req.user?.id || null
     const rentalResult = await client.query(`
       INSERT INTO rentals (
         vehicle_id, client_id, start_date, planned_end_date, mileage_start, fuel_level_start,
         rate_type, rate_amount, deposit, payment_method, total_amount,
-        extras, condition_start, notes, status, payment_status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'active', 'unpaid')
+        extras, condition_start, notes, status, payment_status, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'active', 'unpaid', $15)
       RETURNING *
     `, [
       vehicleId,
@@ -193,7 +198,8 @@ router.post('/', async (req: Request, res: Response) => {
       totalAmount,
       extras || null,
       conditionStart || null,
-      notes || null
+      notes || null,
+      userId
     ])
 
     // Update vehicle status
@@ -241,24 +247,14 @@ router.put('/:id', async (req: Request, res: Response) => {
 
     const existing = existingResult.rows[0] as Record<string, unknown>
 
-    // Recalculate total amount
+    // Recalculate total amount using smooth discount grid
     const start = new Date(existing.start_date as string)
     const end = new Date(plannedEndDate)
-    let totalAmount = 0
+    const days = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)))
 
-    const type = rateType || existing.rate_type
-    const amount = rateAmount || existing.rate_amount
-
-    if (type === 'hourly') {
-      const hours = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60))
-      totalAmount = hours * (amount as number)
-    } else if (type === 'daily') {
-      const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
-      totalAmount = days * (amount as number)
-    } else if (type === 'monthly') {
-      const months = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30))
-      totalAmount = months * (amount as number)
-    }
+    const basePrice = rateAmount || (existing.rate_amount as number)
+    const priceInfo = getRentalPriceInfo(basePrice, days)
+    const totalAmount = priceInfo.totalPrice
 
     const result = await pool.query(`
       UPDATE rentals SET
@@ -307,8 +303,8 @@ router.post('/:id/complete', async (req: Request, res: Response) => {
 
     const rental = rentalResult.rows[0] as Record<string, unknown>
 
-    if (rental.status !== 'active') {
-      return res.status(400).json({ error: 'Rental is not active' })
+    if (rental.status !== 'active' && rental.status !== 'overdue') {
+      return res.status(400).json({ error: 'Rental is not active or overdue' })
     }
 
     await client.query('BEGIN')
@@ -346,6 +342,18 @@ router.post('/:id/complete', async (req: Request, res: Response) => {
   } finally {
     client.release()
   }
+})
+
+// Calculate price preview (for UI)
+router.post('/calculate-price', async (req: Request, res: Response) => {
+  const { basePrice, days } = req.body
+
+  if (!basePrice || !days) {
+    return res.status(400).json({ error: 'basePrice and days are required' })
+  }
+
+  const priceInfo = getRentalPriceInfo(basePrice, days)
+  res.json(priceInfo)
 })
 
 export default router
