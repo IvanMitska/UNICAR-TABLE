@@ -1,574 +1,715 @@
-import { useState, useEffect } from 'react'
-import type { Expense, Vehicle, ExpenseFormData, ExpenseCategory } from '@/types'
+import { useState, useEffect, useMemo } from 'react'
+import type { Expense, Vehicle, ExpenseFormData, ExpenseCategory, Rental, Maintenance, PaymentMethod } from '@/types'
 import clsx from 'clsx'
 import DatePicker from '@/components/ui/DatePicker'
 import SelectDropdown from '@/components/ui/SelectDropdown'
+import { CountUp } from '@/components/ui/CountUp'
+import {
+  Wallet, TrendingUp, ArrowDownRight, ArrowUpRight, BarChart3, Car,
+  Plus, X, Banknote, CreditCard, ArrowLeftRight, ReceiptText, AlertCircle,
+  ShieldCheck, FileSpreadsheet, Printer, Download, Coins, ChevronRight,
+} from 'lucide-react'
 
+/* ============================ constants ============================ */
 const categoryLabels: Record<ExpenseCategory, string> = {
-  maintenance: 'Обслуживание',
-  insurance: 'Страховка',
-  fuel: 'Топливо',
-  fine: 'Штраф',
-  other: 'Прочее',
+  maintenance: 'Обслуживание', insurance: 'Страховка', fuel: 'Топливо', fine: 'Штраф', other: 'Прочее',
+}
+const methodLabels: Record<PaymentMethod, string> = { cash: 'Наличные', card: 'Карта', transfer: 'Перевод' }
+const methodIcon: Record<PaymentMethod, React.ReactNode> = {
+  cash: <Banknote className="w-3.5 h-3.5" />, card: <CreditCard className="w-3.5 h-3.5" />, transfer: <ArrowLeftRight className="w-3.5 h-3.5" />,
 }
 
-const categoryColors: Record<ExpenseCategory, string> = {
-  maintenance: 'badge-warning',
-  insurance: 'badge-info',
-  fuel: 'badge-success',
-  fine: 'badge-danger',
-  other: 'badge-gray',
+type TabKey = 'overview' | 'ledger' | 'receivables' | 'deposits' | 'vehicles' | 'reports'
+const TABS: { key: TabKey; label: string }[] = [
+  { key: 'overview', label: 'Обзор' },
+  { key: 'ledger', label: 'Журнал' },
+  { key: 'receivables', label: 'Дебиторка' },
+  { key: 'deposits', label: 'Депозиты' },
+  { key: 'vehicles', label: 'По авто' },
+  { key: 'reports', label: 'Отчёты' },
+]
+
+const fmt = (n: number) => new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB', maximumFractionDigits: 0 }).format(n)
+const fmtNum = (n: number) => new Intl.NumberFormat('ru-RU').format(Math.round(n))
+const fmtDate = (s: string) => new Date(s).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit' })
+const pad = (n: number) => String(n).padStart(2, '0')
+// Local Y-M-D (no UTC drift, unlike toISOString)
+const isoLocal = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+const isoToday = () => isoLocal(new Date())
+
+/* Period presets */
+function periodPresets() {
+  const now = new Date()
+  const y = now.getFullYear(), m = now.getMonth()
+  return [
+    { key: 'month', label: 'Этот месяц', from: isoLocal(new Date(y, m, 1)), to: isoToday() },
+    { key: 'prev', label: 'Прошлый месяц', from: isoLocal(new Date(y, m - 1, 1)), to: isoLocal(new Date(y, m, 0)) },
+    { key: 'quarter', label: 'Квартал', from: isoLocal(new Date(y, m - 2, 1)), to: isoToday() },
+    { key: 'year', label: 'Год', from: isoLocal(new Date(y, 0, 1)), to: isoToday() },
+    { key: 'all', label: 'Всё время', from: '2000-01-01', to: '2100-01-01' },
+  ]
 }
 
-interface VehicleStats {
-  id: number
-  brand: string
-  model: string
-  licensePlate: string
-  status: string
-  rentalCount: number
-  totalRevenue: number
+function downloadCSV(filename: string, rows: (string | number)[][]) {
+  const csv = rows.map(r => r.map(c => {
+    const s = String(c ?? '')
+    return /[",;\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+  }).join(';')).join('\n')
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = filename; a.click()
+  URL.revokeObjectURL(url)
 }
 
-interface RentalIncome {
-  id: number
-  vehicleBrand: string
-  vehicleModel: string
-  vehiclePlate: string
-  clientName: string
-  startDate: string
-  endDate: string
-  totalAmount: number
-  status: string
-}
-
+/* ============================ page ============================ */
 export default function FinancesPage() {
+  const [rentals, setRentals] = useState<Rental[]>([])
   const [expenses, setExpenses] = useState<Expense[]>([])
+  const [maintenance, setMaintenance] = useState<Maintenance[]>([])
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
-  const [vehicleStats, setVehicleStats] = useState<VehicleStats[]>([])
-  const [activeRentals, setActiveRentals] = useState<RentalIncome[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [dateRange, setDateRange] = useState({
-    from: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
-    to: new Date().toISOString().split('T')[0],
-  })
-  const [stats, setStats] = useState({
-    totalIncome: 0,
-    totalExpenses: 0,
-    profit: 0,
-  })
+  const [tab, setTab] = useState<TabKey>('overview')
 
-  useEffect(() => {
-    fetchData()
-  }, [dateRange])
+  const presets = periodPresets()
+  // Default to year-to-date so existing data is visible immediately
+  const [period, setPeriod] = useState({ from: presets[3].from, to: presets[3].to, key: 'year' })
+
+  useEffect(() => { fetchData() }, [])
 
   const fetchData = async () => {
+    const n = (x: unknown) => Number(x) || 0
     try {
-      const [expensesRes, vehiclesRes, statsRes, popularityRes, rentalsRes] = await Promise.all([
-        fetch(`/api/expenses?from=${dateRange.from}&to=${dateRange.to}`),
-        fetch('/api/vehicles'),
-        fetch(`/api/reports/summary?from=${dateRange.from}&to=${dateRange.to}`),
-        fetch('/api/reports/vehicle-popularity'),
-        fetch('/api/rentals/active'),
+      const [r, e, m, v] = await Promise.all([
+        fetch('/api/rentals'), fetch('/api/expenses'), fetch('/api/maintenance'), fetch('/api/vehicles'),
       ])
-
-      if (expensesRes.ok) setExpenses(await expensesRes.json())
-      if (vehiclesRes.ok) setVehicles(await vehiclesRes.json())
-      if (statsRes.ok) {
-        const data = await statsRes.json()
-        setStats({
-          totalIncome: data.totalIncome || 0,
-          totalExpenses: data.totalExpenses || 0,
-          profit: (data.totalIncome || 0) - (data.totalExpenses || 0),
-        })
-      }
-      if (popularityRes.ok) {
-        const data = await popularityRes.json()
-        setVehicleStats(data.all || [])
-      }
-      if (rentalsRes.ok) {
-        const data = await rentalsRes.json()
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const mappedRentals = data.map((r: any) => ({
-          id: r.id,
-          vehicleBrand: r.vehicle?.brand || '',
-          vehicleModel: r.vehicle?.model || '',
-          vehiclePlate: r.vehicle?.licensePlate || '',
-          clientName: r.client?.fullName || '',
-          startDate: r.startDate,
-          endDate: r.plannedEndDate,
-          totalAmount: r.totalAmount || 0,
-          status: r.status,
-        }))
-        setActiveRentals(mappedRentals)
-      }
-    } catch (error) {
-      console.error('Failed to fetch data:', error)
-    } finally {
-      setIsLoading(false)
-    }
+      // PostgreSQL returns DECIMAL columns as strings — coerce numeric fields.
+      if (r.ok) setRentals((await r.json()).map((x: Rental) => ({ ...x, totalAmount: n(x.totalAmount), deposit: n(x.deposit), rateAmount: n(x.rateAmount) })))
+      if (e.ok) setExpenses((await e.json()).map((x: Expense) => ({ ...x, amount: n(x.amount) })))
+      if (m.ok) setMaintenance((await m.json()).map((x: Maintenance) => ({ ...x, cost: n(x.cost) })))
+      if (v.ok) setVehicles(await v.json())
+    } catch (err) {
+      console.error('Failed to fetch finance data:', err)
+    } finally { setIsLoading(false) }
   }
 
-  const handleSave = async (data: ExpenseFormData) => {
+  const handleSaveExpense = async (data: ExpenseFormData) => {
     try {
-      const response = await fetch('/api/expenses', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+      const res = await fetch('/api/expenses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      if (res.ok) { fetchData(); setIsModalOpen(false) }
+    } catch (err) { console.error('Failed to save expense:', err) }
+  }
+
+  // Mark a rental as paid — sends full existing fields (PUT recalculates total from dates)
+  const markPaid = async (r: Rental) => {
+    try {
+      const res = await fetch(`/api/rentals/${r.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plannedEndDate: r.plannedEndDate, rateType: r.rateType, rateAmount: r.rateAmount,
+          deposit: r.deposit, paymentMethod: r.paymentMethod, paymentStatus: 'paid',
+          extras: r.extras, conditionStart: r.conditionStart, notes: r.notes,
+        }),
       })
-
-      if (response.ok) {
-        fetchData()
-        setIsModalOpen(false)
+      if (res.ok) {
+        setRentals(prev => prev.map(x => x.id === r.id ? { ...x, paymentStatus: 'paid' } : x))
       }
-    } catch (error) {
-      console.error('Failed to save expense:', error)
+    } catch (err) { console.error('Failed to mark paid:', err) }
+  }
+
+  /* ---------------- derived accounting data ---------------- */
+  const A = useMemo(() => {
+    const inRange = (d: string | null | undefined) => { if (!d) return false; const x = d.slice(0, 10); return x >= period.from && x <= period.to }
+    const revDate = (r: Rental) => (r.actualEndDate || r.startDate).slice(0, 10)
+    const live = rentals.filter(r => r.status !== 'cancelled')
+
+    const periodRentals = live.filter(r => inRange(revDate(r)))
+    const periodExpenses = expenses.filter(e => inRange(e.date))
+    const periodMaint = maintenance.filter(m => inRange(m.date))
+
+    const revenue = periodRentals.reduce((s, r) => s + (r.totalAmount || 0), 0)
+    const received = periodRentals.filter(r => r.paymentStatus === 'paid').reduce((s, r) => s + (r.totalAmount || 0), 0)
+    const expensesSum = periodExpenses.reduce((s, e) => s + (e.amount || 0), 0)
+    const maintSum = periodMaint.reduce((s, m) => s + (m.cost || 0), 0)
+    const expenseTotal = expensesSum + maintSum
+    const profit = revenue - expenseTotal
+    const margin = revenue > 0 ? (profit / revenue) * 100 : 0
+
+    // current receivables (all-time outstanding)
+    const receivablesList = live.filter(r => r.paymentStatus !== 'paid' && (r.totalAmount || 0) > 0)
+      .sort((a, b) => (b.totalAmount || 0) - (a.totalAmount || 0))
+    const receivables = receivablesList.reduce((s, r) => s + (r.totalAmount || 0), 0)
+
+    // deposits held now
+    const depositsList = live.filter(r => (r.deposit || 0) > 0)
+    const heldList = depositsList.filter(r => !r.depositReturned && (r.status === 'active' || r.status === 'overdue'))
+    const depositsHeld = heldList.reduce((s, r) => s + (r.deposit || 0), 0)
+    const depositsReturned = depositsList.filter(r => r.depositReturned).reduce((s, r) => s + (r.deposit || 0), 0)
+
+    // payment split (received, by method)
+    const split: Record<PaymentMethod, number> = { cash: 0, card: 0, transfer: 0 }
+    periodRentals.filter(r => r.paymentStatus === 'paid').forEach(r => { split[r.paymentMethod] = (split[r.paymentMethod] || 0) + (r.totalAmount || 0) })
+
+    // expense breakdown
+    const byCat: Record<string, number> = {}
+    periodExpenses.forEach(e => { byCat[e.category] = (byCat[e.category] || 0) + e.amount })
+    if (maintSum > 0) byCat['ТО'] = maintSum
+    const expenseBreakdown = Object.entries(byCat).map(([k, v]) => ({ key: k, label: categoryLabels[k as ExpenseCategory] || k, value: v })).sort((a, b) => b.value - a.value)
+
+    // ledger transactions
+    type Txn = { id: string; date: string; kind: 'income' | 'expense' | 'deposit_in' | 'deposit_out'; title: string; sub: string; vehicle: string; method?: PaymentMethod; status?: string; amount: number }
+    const txns: Txn[] = []
+    periodRentals.forEach(r => {
+      const veh = r.vehicle ? `${r.vehicle.brand} ${r.vehicle.model}` : '—'
+      txns.push({ id: `r${r.id}`, date: revDate(r), kind: 'income', title: 'Аренда', sub: r.client?.fullName || '', vehicle: veh, method: r.paymentMethod, status: r.paymentStatus, amount: r.totalAmount || 0 })
+    })
+    live.forEach(r => {
+      if ((r.deposit || 0) <= 0) return
+      const veh = r.vehicle ? `${r.vehicle.brand} ${r.vehicle.model}` : '—'
+      if (inRange(r.startDate)) txns.push({ id: `di${r.id}`, date: r.startDate.slice(0, 10), kind: 'deposit_in', title: 'Депозит получен', sub: r.client?.fullName || '', vehicle: veh, amount: r.deposit })
+      if (r.depositReturned && r.actualEndDate && inRange(r.actualEndDate)) txns.push({ id: `do${r.id}`, date: r.actualEndDate.slice(0, 10), kind: 'deposit_out', title: 'Депозит возвращён', sub: r.client?.fullName || '', vehicle: veh, amount: -r.deposit })
+    })
+    periodExpenses.forEach(e => {
+      const veh = e.vehicle ? `${e.vehicle.brand} ${e.vehicle.model}` : '—'
+      txns.push({ id: `e${e.id}`, date: e.date.slice(0, 10), kind: 'expense', title: categoryLabels[e.category] || 'Расход', sub: e.description, vehicle: veh, amount: -e.amount })
+    })
+    periodMaint.forEach(m => {
+      const veh = m.vehicle ? `${m.vehicle.brand} ${m.vehicle.model}` : '—'
+      txns.push({ id: `m${m.id}`, date: m.date.slice(0, 10), kind: 'expense', title: 'Обслуживание', sub: m.description, vehicle: veh, amount: -m.cost })
+    })
+    txns.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0)
+    let bal = 0
+    const txnsWithBal = txns.map(t => { bal += t.amount; return { ...t, balance: bal } })
+
+    // cash-flow buckets
+    const rangeDays = Math.max(1, Math.round((new Date(period.to).getTime() - new Date(period.from).getTime()) / 86400000))
+    const byMonth = rangeDays > 70
+    const buckets: Record<string, { income: number; expense: number }> = {}
+    const bk = (d: string) => byMonth ? d.slice(0, 7) : d.slice(0, 10)
+    periodRentals.forEach(r => { const k = bk(revDate(r)); (buckets[k] ||= { income: 0, expense: 0 }).income += r.totalAmount || 0 })
+    periodExpenses.forEach(e => { const k = bk(e.date); (buckets[k] ||= { income: 0, expense: 0 }).expense += e.amount })
+    periodMaint.forEach(m => { const k = bk(m.date); (buckets[k] ||= { income: 0, expense: 0 }).expense += m.cost })
+    const cashflow = Object.entries(buckets).sort((a, b) => a[0] < b[0] ? -1 : 1).map(([k, v]) => ({ k, ...v }))
+
+    // per-vehicle P&L
+    const perVehicle = vehicles.filter(v => v.status !== 'archived').map(v => {
+      const rev = periodRentals.filter(r => r.vehicleId === v.id).reduce((s, r) => s + (r.totalAmount || 0), 0)
+      const exp = periodExpenses.filter(e => e.vehicleId === v.id).reduce((s, e) => s + e.amount, 0)
+        + periodMaint.filter(m => m.vehicleId === v.id).reduce((s, m) => s + m.cost, 0)
+      const count = periodRentals.filter(r => r.vehicleId === v.id).length
+      return { v, rev, exp, profit: rev - exp, margin: rev > 0 ? ((rev - exp) / rev) * 100 : 0, count }
+    }).filter(x => x.rev > 0 || x.exp > 0).sort((a, b) => b.profit - a.profit)
+
+    return {
+      revenue, received, expenseTotal, expensesSum, maintSum, profit, margin,
+      receivables, receivablesList, depositsHeld, depositsReturned, heldList, depositsList,
+      split, expenseBreakdown, txns: txnsWithBal, cashflow, perVehicle, periodRentals,
     }
-  }
+  }, [rentals, expenses, maintenance, vehicles, period])
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('ru-RU')
-  }
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('th-TH', {
-      style: 'currency',
-      currency: 'THB',
-      maximumFractionDigits: 0,
-    }).format(amount)
-  }
+  const setPreset = (p: { from: string; to: string; key: string }) => setPeriod({ from: p.from, to: p.to, key: p.key })
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <div className="relative">
-          <div className="w-12 h-12 rounded-full border-[3px] border-gray-200 dark:border-zinc-700" />
-          <div className="absolute inset-0 w-12 h-12 rounded-full border-[3px] border-transparent border-t-gray-900 dark:border-t-white animate-spin" />
-        </div>
+      <div className="flex flex-col gap-6 max-w-7xl mx-auto">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{[...Array(4)].map((_, i) => <div key={i} className="h-[116px] rounded-[18px] skeleton" />)}</div>
+        <div className="h-10 rounded-full skeleton w-full max-w-md" />
+        <div className="h-[320px] rounded-2xl skeleton" />
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col gap-8 max-w-7xl mx-auto">
+    <div className="flex flex-col gap-6 max-w-7xl mx-auto">
       {/* Header */}
-      <header className="animate-slide-up">
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Аналитика</p>
-            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white tracking-tight">
-              Финансы
-            </h1>
+      <header className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 fade-up no-print">
+        <div>
+          <p className="eyebrow mb-1.5">Бухгалтерия</p>
+          <h1 className="text-[28px] sm:text-[32px] font-bold tracking-tight text-[var(--ink)] leading-none">Финансы</h1>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="segment overflow-x-auto">
+            {presets.map(p => (
+              <button key={p.key} onClick={() => setPreset(p)} className={clsx('segment-item', period.key === p.key && 'is-active')}>{p.label}</button>
+            ))}
           </div>
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-semibold hover:bg-gray-800 dark:hover:bg-gray-100 transition-all active:scale-[0.98] shadow-lg shadow-gray-900/10 dark:shadow-white/10"
-          >
-            <PlusIcon className="w-4 h-4" />
-            Добавить расход
-          </button>
+          <button onClick={() => setIsModalOpen(true)} className="btn-primary"><Plus className="w-4 h-4" /> Расход</button>
         </div>
       </header>
 
-      {/* Date range filter */}
-      <div className="flex flex-wrap items-end gap-4 animate-slide-up" style={{ animationDelay: '50ms' }}>
-        <DatePicker
-          label="От"
-          value={dateRange.from}
-          onChange={(value) => setDateRange({ ...dateRange, from: value })}
-          className="w-48"
-        />
-        <span className="text-gray-400 pb-3">—</span>
-        <DatePicker
-          label="До"
-          value={dateRange.to}
-          onChange={(value) => setDateRange({ ...dateRange, to: value })}
-          className="w-48"
-        />
-      </div>
-
-      {/* Stats cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '100ms' }}>
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/50 to-transparent dark:from-emerald-900/10 dark:to-transparent pointer-events-none" />
-          <div className="relative">
-            <span className="text-emerald-500 dark:text-emerald-400 mb-4 block"><ArrowUpIcon className="w-5 h-5" /></span>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{formatCurrency(stats.totalIncome)}</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Доход</p>
-          </div>
-        </div>
-        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '150ms' }}>
-          <div className="absolute inset-0 bg-gradient-to-br from-red-50/50 to-transparent dark:from-red-900/10 dark:to-transparent pointer-events-none" />
-          <div className="relative">
-            <span className="text-red-500 dark:text-red-400 mb-4 block"><ArrowDownIcon className="w-5 h-5" /></span>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{formatCurrency(stats.totalExpenses)}</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Расходы</p>
-          </div>
-        </div>
-        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '200ms' }}>
-          <div className="absolute inset-0 bg-gradient-to-br from-gray-50/50 to-transparent dark:from-zinc-800/10 dark:to-transparent pointer-events-none" />
-          <div className="relative">
-            <span className="text-gray-500 dark:text-gray-400 mb-4 block"><WalletIcon className="w-5 h-5" /></span>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{formatCurrency(stats.profit)}</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Прибыль</p>
-          </div>
+      {/* Custom range */}
+      <div className="flex items-center gap-3 -mt-2 fade-up no-print">
+        <div className="flex items-center gap-2">
+          <DatePicker value={period.from} onChange={(v) => setPeriod({ ...period, from: v, key: 'custom' })} className="w-40" />
+          <span className="text-[var(--ink-subtle)]">—</span>
+          <DatePicker value={period.to} onChange={(v) => setPeriod({ ...period, to: v, key: 'custom' })} className="w-40" />
         </div>
       </div>
 
-      {/* Two column layout for analytics */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Active Rentals Income */}
-        <div className="rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm">
-          <div className="p-4 border-b border-gray-100 dark:border-zinc-800 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
-                <TrendingUpIcon className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Активные аренды</h2>
-                <p className="text-xs text-gray-500">Текущий доход</p>
-              </div>
-            </div>
-            <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
-              {formatCurrency(activeRentals.reduce((sum, r) => sum + r.totalAmount, 0))}
-            </span>
-          </div>
-          <div className="divide-y divide-gray-100 dark:divide-zinc-800 max-h-80 overflow-y-auto">
-            {activeRentals.length === 0 ? (
-              <div className="p-8 text-center">
-                <p className="text-gray-500 dark:text-gray-400">Нет активных аренд</p>
-              </div>
-            ) : (
-              activeRentals.map((rental) => (
-                <div key={rental.id} className="p-4 flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 dark:text-white truncate">
-                      {rental.vehicleBrand} {rental.vehicleModel}
-                    </p>
-                    <p className="text-xs text-gray-500 truncate">{rental.clientName}</p>
-                  </div>
-                  <p className="font-semibold text-emerald-600 dark:text-emerald-400 ml-4">
-                    +{formatCurrency(rental.totalAmount)}
-                  </p>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 stagger-animation">
+        <Kpi label="Выручка" value={A.revenue} icon={<TrendingUp className="w-[18px] h-[18px]" />} tone="emerald" />
+        <Kpi label="Чистая прибыль" value={A.profit} icon={<Wallet className="w-[18px] h-[18px]" />} tone="accent"
+          extra={A.revenue > 0 ? `маржа ${Math.round(A.margin)}%` : undefined} />
+        <Kpi label="К получению" value={A.receivables} icon={<AlertCircle className="w-[18px] h-[18px]" />} tone="rose"
+          extra={A.receivablesList.length ? `${A.receivablesList.length} аренд` : 'всё оплачено'} onClick={() => setTab('receivables')} />
+        <Kpi label="Депозиты в залоге" value={A.depositsHeld} icon={<ShieldCheck className="w-[18px] h-[18px]" />} tone="neutral"
+          extra={A.heldList.length ? `${A.heldList.length} активных` : '—'} onClick={() => setTab('deposits')} />
+      </div>
 
-        {/* Top Vehicles by Revenue */}
-        <div className="rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm">
-          <div className="p-4 border-b border-gray-100 dark:border-zinc-800 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-zinc-800 flex items-center justify-center">
-              <ChartBarIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Топ машин по доходу</h2>
-              <p className="text-xs text-gray-500">За всё время</p>
+      {/* Tabs */}
+      <div className="segment overflow-x-auto max-w-full fade-up no-print">
+        {TABS.map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)} className={clsx('segment-item', tab === t.key && 'is-active')}>
+            {t.label}
+            {t.key === 'receivables' && A.receivablesList.length > 0 && <span className="segment-item-count">{A.receivablesList.length}</span>}
+          </button>
+        ))}
+      </div>
+
+      {/* ---- Tab content ---- */}
+      {tab === 'overview' && <OverviewTab A={A} />}
+      {tab === 'ledger' && <LedgerTab A={A} period={period} />}
+      {tab === 'receivables' && <ReceivablesTab A={A} onMarkPaid={markPaid} />}
+      {tab === 'deposits' && <DepositsTab A={A} />}
+      {tab === 'vehicles' && <VehiclesTab A={A} period={period} />}
+      {tab === 'reports' && <ReportsTab A={A} period={period} />}
+
+      {isModalOpen && <ExpenseModal vehicles={vehicles} onClose={() => setIsModalOpen(false)} onSave={handleSaveExpense} />}
+    </div>
+  )
+}
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+type Acc = any
+
+/* ============================ KPI ============================ */
+function Kpi({ label, value, icon, tone, extra, onClick }: {
+  label: string; value: number; icon: React.ReactNode; tone: 'emerald' | 'accent' | 'rose' | 'neutral'; extra?: string; onClick?: () => void
+}) {
+  return (
+    <div className={clsx('stat-card', onClick ? 'card-hover cursor-pointer' : 'card-hover')} onClick={onClick}>
+      <div className="flex items-center justify-between mb-2.5">
+        <span className={clsx('icon-soft w-10 h-10', tone === 'accent' ? 'icon-soft-accent' : `icon-soft-${tone}`)}>{icon}</span>
+        {onClick && <ChevronRight className="w-4 h-4 text-[var(--ink-subtle)]" />}
+      </div>
+      <p className="eyebrow mb-1.5">{label}</p>
+      <p className="text-[24px] leading-none font-bold tracking-tight text-[var(--ink)]"><CountUp value={value} format={fmt} /></p>
+      {extra && <p className="text-[11.5px] text-[var(--ink-muted)] mt-1.5">{extra}</p>}
+    </div>
+  )
+}
+
+/* ============================ Overview ============================ */
+function OverviewTab({ A }: { A: Acc }) {
+  return (
+    <div className="flex flex-col gap-4 fade-up">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Cash-flow chart */}
+        <section className="card p-5 lg:col-span-2">
+          <div className="flex items-center gap-3 mb-5">
+            <span className="icon-soft icon-soft-ink w-10 h-10"><BarChart3 className="w-[18px] h-[18px]" /></span>
+            <div><h2 className="text-[14px] font-semibold text-[var(--ink-2)]">Движение средств</h2><p className="text-[11.5px] text-[var(--ink-subtle)]">Приход vs расход за период</p></div>
+            <div className="ml-auto flex items-center gap-3 text-[11px]">
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />Приход</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full" style={{ background: '#ef4444' }} />Расход</span>
             </div>
           </div>
-          <div className="p-4 space-y-4 max-h-80 overflow-y-auto">
-            {vehicleStats.filter(v => v.totalRevenue > 0).slice(0, 10).map((vehicle, index) => {
-              const maxRevenue = Math.max(...vehicleStats.map(v => v.totalRevenue), 1)
-              const percentage = (vehicle.totalRevenue / maxRevenue) * 100
-              return (
-                <div key={vehicle.id} className="space-y-1">
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-full bg-gray-100 dark:bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-gray-500">
-                        {index + 1}
-                      </span>
-                      <span className="font-medium text-gray-900 dark:text-white">
-                        {vehicle.brand} {vehicle.model}
-                      </span>
+          <CashflowChart data={A.cashflow} />
+        </section>
+
+        {/* Payment split */}
+        <section className="card p-5">
+          <div className="flex items-center gap-3 mb-4">
+            <span className="icon-soft icon-soft-ink w-10 h-10"><Coins className="w-[18px] h-[18px]" /></span>
+            <div><h2 className="text-[14px] font-semibold text-[var(--ink-2)]">Способы оплаты</h2><p className="text-[11.5px] text-[var(--ink-subtle)]">Полученные средства</p></div>
+          </div>
+          <SplitBars split={A.split} />
+        </section>
+      </div>
+
+      {/* Expense breakdown + quick P&L */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <section className="card p-5">
+          <h2 className="text-[14px] font-semibold text-[var(--ink-2)] mb-4">Структура расходов</h2>
+          {A.expenseBreakdown.length === 0 ? <EmptyMini text="Нет расходов за период" /> : (
+            <div className="space-y-3">
+              {A.expenseBreakdown.map((c: Acc) => {
+                const max = A.expenseBreakdown[0].value || 1
+                return (
+                  <div key={c.key}>
+                    <div className="flex items-center justify-between text-[13px] mb-1">
+                      <span className="text-[var(--ink-2)]">{c.label}</span>
+                      <span className="font-semibold text-[var(--ink)] num-roll">{fmt(c.value)}</span>
                     </div>
-                    <span className="font-semibold text-gray-900 dark:text-white">
-                      {formatCurrency(vehicle.totalRevenue)}
-                    </span>
+                    <div className="h-1.5 rounded-full bg-[var(--surface-3)] overflow-hidden">
+                      <div className="h-full rounded-full spark-grow" style={{ width: `${(c.value / max) * 100}%`, background: 'linear-gradient(90deg, var(--accent-strong), var(--accent-bright))' }} />
+                    </div>
                   </div>
-                  <div className="h-2 bg-gray-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-gray-500 to-gray-600 dark:from-zinc-500 dark:to-zinc-400 rounded-full transition-all duration-500"
-                      style={{ width: `${percentage}%` }}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-gray-500">
-                    <span>{vehicle.licensePlate}</span>
-                    <span>{vehicle.rentalCount} аренд</span>
-                  </div>
-                </div>
-              )
-            })}
-            {vehicleStats.filter(v => v.totalRevenue > 0).length === 0 && (
-              <div className="p-8 text-center">
-                <p className="text-gray-500 dark:text-gray-400">Нет данных о доходах</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Fleet Overview */}
-      <div className="rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm">
-        <div className="p-4 border-b border-gray-100 dark:border-zinc-800 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-            <CarIcon className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Обзор автопарка</h2>
-            <p className="text-xs text-gray-500">Статус и доходность</p>
-          </div>
-        </div>
-        <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
-            <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-              {vehicles.filter(v => v.status === 'rented').length}
-            </p>
-            <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">В аренде</p>
-          </div>
-          <div className="p-4 rounded-xl bg-gray-50 dark:bg-zinc-800/30 border border-gray-200 dark:border-zinc-700">
-            <p className="text-2xl font-bold text-gray-600 dark:text-gray-300">
-              {vehicles.filter(v => v.status === 'available').length}
-            </p>
-            <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">Свободно</p>
-          </div>
-          <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
-            <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
-              {vehicles.filter(v => v.status === 'maintenance').length}
-            </p>
-            <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">На ТО</p>
-          </div>
-          <div className="p-4 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700">
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">
-              {vehicles.length}
-            </p>
-            <p className="text-xs text-gray-500 font-medium">Всего машин</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Expenses list */}
-      <div className="rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm">
-        <div className="p-4 border-b border-gray-100 dark:border-zinc-800">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Расходы</h2>
-        </div>
-        {expenses.length === 0 ? (
-          <div className="p-12 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-50 dark:bg-zinc-800 flex items-center justify-center">
-              <WalletIcon className="w-8 h-8 text-gray-400" />
+                )
+              })}
             </div>
-            <p className="text-gray-500 dark:text-gray-400">Нет расходов за этот период</p>
+          )}
+        </section>
+
+        <section className="card p-5">
+          <h2 className="text-[14px] font-semibold text-[var(--ink-2)] mb-4">Сводка за период</h2>
+          <div className="divide-y divide-[var(--border)]">
+            <PnlRow label="Выручка" value={A.revenue} />
+            <PnlRow label="— Получено" value={A.received} muted />
+            <PnlRow label="— Ожидается" value={A.revenue - A.received} muted />
+            <PnlRow label="Расходы (операционные)" value={-A.expensesSum} />
+            <PnlRow label="Обслуживание / ТО" value={-A.maintSum} />
+            <PnlRow label="Чистая прибыль" value={A.profit} strong />
           </div>
-        ) : (
-          <div className="divide-y divide-gray-100 dark:divide-zinc-800">
-            {expenses.map((expense) => (
-              <div key={expense.id} className="p-4 flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className={clsx('badge', categoryColors[expense.category])}>
-                      {categoryLabels[expense.category]}
+        </section>
+      </div>
+    </div>
+  )
+}
+
+function PnlRow({ label, value, muted, strong }: { label: string; value: number; muted?: boolean; strong?: boolean }) {
+  return (
+    <div className={clsx('flex items-center justify-between py-2.5', strong && 'pt-3')}>
+      <span className={clsx(strong ? 'text-[14px] font-semibold text-[var(--ink)]' : muted ? 'text-[12.5px] text-[var(--ink-muted)] pl-3' : 'text-[13px] text-[var(--ink-2)]')}>{label}</span>
+      <span className={clsx('num-roll', strong ? 'text-[16px] font-bold' : muted ? 'text-[12.5px] text-[var(--ink-muted)]' : 'text-[13.5px] font-semibold text-[var(--ink)]')}
+        style={strong ? { color: value >= 0 ? 'var(--accent)' : '#ef4444' } : undefined}>{fmt(value)}</span>
+    </div>
+  )
+}
+
+function CashflowChart({ data }: { data: { k: string; income: number; expense: number }[] }) {
+  if (data.length === 0) return <EmptyMini text="Нет операций за период" />
+  const max = Math.max(1, ...data.map(d => Math.max(d.income, d.expense)))
+  const label = (k: string) => k.length === 7 ? new Date(k + '-01').toLocaleDateString('ru-RU', { month: 'short' }) : new Date(k).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })
+  const shown = data.slice(-24)
+  return (
+    <div className="flex items-end gap-2 h-[200px] overflow-x-auto pb-1">
+      {shown.map((d, i) => (
+        <div key={d.k} className="flex-1 min-w-[26px] flex flex-col items-center gap-1.5 group">
+          <div className="flex items-end gap-1 h-[170px] w-full justify-center">
+            <div className="w-[42%] rounded-t-md bg-emerald-500/90 relative spark-bar-grow" style={{ height: `${(d.income / max) * 100}%`, minHeight: d.income > 0 ? 3 : 0, animationDelay: `${i * 25}ms` }} title={`Приход: ${fmt(d.income)}`} />
+            <div className="w-[42%] rounded-t-md relative spark-bar-grow" style={{ height: `${(d.expense / max) * 100}%`, minHeight: d.expense > 0 ? 3 : 0, background: '#ef4444', animationDelay: `${i * 25 + 60}ms` }} title={`Расход: ${fmt(d.expense)}`} />
+          </div>
+          <span className="text-[9.5px] text-[var(--ink-subtle)] whitespace-nowrap">{label(d.k)}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function SplitBars({ split }: { split: Record<PaymentMethod, number> }) {
+  const total = (Object.values(split) as number[]).reduce((s, v) => s + v, 0)
+  const methods: PaymentMethod[] = ['cash', 'card', 'transfer']
+  if (total === 0) return <EmptyMini text="Нет полученных оплат" />
+  return (
+    <div className="space-y-3.5">
+      {methods.map(m => {
+        const v = split[m] || 0
+        const pct = total > 0 ? (v / total) * 100 : 0
+        return (
+          <div key={m}>
+            <div className="flex items-center justify-between text-[13px] mb-1.5">
+              <span className="flex items-center gap-2 text-[var(--ink-2)]"><span className="icon-soft icon-soft-neutral w-6 h-6">{methodIcon[m]}</span>{methodLabels[m]}</span>
+              <span className="font-semibold text-[var(--ink)] num-roll">{fmt(v)}</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-[var(--surface-3)] overflow-hidden">
+              <div className="h-full rounded-full spark-grow" style={{ width: `${pct}%`, background: 'var(--ink)' }} />
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/* ============================ Ledger ============================ */
+function LedgerTab({ A, period }: { A: Acc; period: { from: string; to: string } }) {
+  const [kind, setKind] = useState<'all' | 'income' | 'expense' | 'deposit'>('all')
+  const rows = (A.txns as Acc[]).filter(t =>
+    kind === 'all' ? true : kind === 'deposit' ? t.kind.startsWith('deposit') : t.kind === kind
+  ).slice().reverse()
+
+  const totalIn = (A.txns as Acc[]).filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0)
+  const totalOut = (A.txns as Acc[]).filter(t => t.amount < 0).reduce((s, t) => s + t.amount, 0)
+
+  const exportCsv = () => {
+    const data: (string | number)[][] = [['Дата', 'Тип', 'Описание', 'Клиент/Заметка', 'Авто', 'Способ', 'Сумма', 'Баланс']]
+    ;[...(A.txns as Acc[])].reverse().forEach(t => data.push([t.date, kindLabel(t.kind), t.title, t.sub, t.vehicle, t.method ? methodLabels[t.method as PaymentMethod] : '', Math.round(t.amount), Math.round(t.balance)]))
+    downloadCSV(`ledger_${period.from}_${period.to}.csv`, data)
+  }
+
+  return (
+    <div className="flex flex-col gap-3 fade-up">
+      <div className="flex items-center justify-between gap-3 flex-wrap no-print">
+        <div className="segment">
+          {(['all', 'income', 'expense', 'deposit'] as const).map(k => (
+            <button key={k} onClick={() => setKind(k)} className={clsx('segment-item', kind === k && 'is-active')}>
+              {k === 'all' ? 'Все' : k === 'income' ? 'Приход' : k === 'expense' ? 'Расход' : 'Депозиты'}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-[12px] text-[var(--ink-muted)]">+{fmtNum(totalIn)} / {fmtNum(totalOut)} ฿</span>
+          <button onClick={exportCsv} className="btn-secondary !py-2 text-[12.5px]"><FileSpreadsheet className="w-4 h-4" /> CSV</button>
+        </div>
+      </div>
+
+      <div className="table-container">
+        <table className="table">
+          <thead><tr>
+            <th>Дата</th><th>Операция</th><th className="hidden md:table-cell">Авто</th><th className="hidden lg:table-cell">Способ</th><th className="text-right">Сумма</th><th className="text-right hidden sm:table-cell">Баланс</th>
+          </tr></thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr><td colSpan={6}><EmptyMini text="Нет операций за период" /></td></tr>
+            ) : rows.map((t: Acc) => (
+              <tr key={t.id}>
+                <td className="text-[var(--ink-muted)] whitespace-nowrap">{fmtDate(t.date)}</td>
+                <td>
+                  <div className="flex items-center gap-2.5">
+                    <span className={clsx('icon-soft w-8 h-8', t.kind === 'income' ? 'icon-soft-emerald' : t.kind === 'expense' ? 'icon-soft-rose' : 'icon-soft-neutral')}>
+                      {t.kind === 'income' ? <ArrowUpRight className="w-4 h-4" /> : t.kind === 'expense' ? <ArrowDownRight className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
                     </span>
-                    <span className="text-sm text-gray-500">{formatDate(expense.date)}</span>
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-medium text-[var(--ink)] flex items-center gap-2">{t.title}
+                        {t.status && t.status !== 'paid' && <span className={clsx('pill', t.status === 'partial' ? 'pill-warning' : 'pill-danger')}>{t.status === 'partial' ? 'частично' : 'не оплачено'}</span>}
+                      </p>
+                      {t.sub && <p className="text-[11px] text-[var(--ink-subtle)] truncate max-w-[260px]">{t.sub}</p>}
+                    </div>
                   </div>
-                  <p className="text-gray-900 dark:text-white">{expense.description}</p>
-                  {expense.vehicle && (
-                    <p className="text-sm text-gray-500">
-                      {expense.vehicle.brand} {expense.vehicle.model}
-                    </p>
-                  )}
-                </div>
-                <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                  -{formatCurrency(expense.amount)}
-                </p>
-              </div>
+                </td>
+                <td className="hidden md:table-cell text-[var(--ink-muted)] text-[12.5px]">{t.vehicle}</td>
+                <td className="hidden lg:table-cell">{t.method && <span className="inline-flex items-center gap-1.5 text-[12px] text-[var(--ink-muted)]">{methodIcon[t.method as PaymentMethod]}{methodLabels[t.method as PaymentMethod]}</span>}</td>
+                <td className="text-right num-roll font-semibold" style={{ color: t.amount >= 0 ? '#059669' : '#dc2626' }}>{t.amount >= 0 ? '+' : '−'}{fmt(Math.abs(t.amount)).replace('฿', '฿')}</td>
+                <td className="text-right num-roll text-[var(--ink-muted)] hidden sm:table-cell">{fmt(t.balance)}</td>
+              </tr>
             ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+function kindLabel(k: string) { return k === 'income' ? 'Приход' : k === 'expense' ? 'Расход' : k === 'deposit_in' ? 'Депозит +' : 'Депозит −' }
+
+/* ============================ Receivables ============================ */
+function ReceivablesTab({ A, onMarkPaid }: { A: Acc; onMarkPaid: (r: Rental) => void }) {
+  const list = A.receivablesList as Rental[]
+  const now = Date.now()
+  const overdueSum = list.filter(r => new Date(r.plannedEndDate).getTime() < now).reduce((s, r) => s + (r.totalAmount || 0), 0)
+  const exportCsv = () => {
+    const data: (string | number)[][] = [['Аренда', 'Клиент', 'Авто', 'Конец', 'Статус оплаты', 'Сумма']]
+    list.forEach(r => data.push([`#${r.id}`, r.client?.fullName || '', r.vehicle ? `${r.vehicle.brand} ${r.vehicle.model}` : '', fmtDate(r.plannedEndDate), r.paymentStatus, Math.round(r.totalAmount || 0)]))
+    downloadCSV('receivables.csv', data)
+  }
+  const confirmPaid = (r: Rental) => { if (confirm(`Отметить аренду #${r.id} как оплаченную (${fmt(r.totalAmount || 0)})?`)) onMarkPaid(r) }
+  return (
+    <div className="flex flex-col gap-3 fade-up">
+      {/* Summary — neutral surface with a red accent stripe (no harsh fill) */}
+      <div className="card stripe-l p-4 flex items-center gap-3" style={{ ['--stripe' as string]: '#ef4444' }}>
+        <span className="icon-soft icon-soft-rose w-11 h-11"><ReceiptText className="w-[20px] h-[20px]" /></span>
+        <div className="flex-1">
+          <p className="eyebrow mb-0.5">Итого к получению</p>
+          <p className="text-[26px] font-bold tracking-tight text-[var(--ink)] leading-none"><CountUp value={A.receivables} format={fmt} /></p>
+        </div>
+        {overdueSum > 0 && (
+          <div className="hidden sm:block text-right mr-2">
+            <p className="text-[11px] text-[var(--ink-subtle)]">просрочено</p>
+            <p className="text-[15px] font-bold" style={{ color: '#dc2626' }}>{fmt(overdueSum)}</p>
           </div>
         )}
+        <button onClick={exportCsv} className="btn-secondary !py-2 text-[12.5px] no-print"><FileSpreadsheet className="w-4 h-4" /> CSV</button>
       </div>
-
-      {/* Modal */}
-      {isModalOpen && (
-        <ExpenseModal
-          vehicles={vehicles}
-          onClose={() => setIsModalOpen(false)}
-          onSave={handleSave}
-        />
+      {list.length === 0 ? <div className="card p-12 text-center"><span className="icon-soft icon-soft-emerald w-16 h-16 mx-auto mb-4 breathe"><ShieldCheck className="w-8 h-8" /></span><p className="text-[var(--ink-2)] font-medium">Долгов нет — всё оплачено 🎉</p></div> : (
+        <div className="table-container">
+          <table className="table">
+            <thead><tr><th>Клиент</th><th className="hidden md:table-cell">Авто</th><th>Срок</th><th>Оплата</th><th className="text-right">Сумма</th><th className="w-px no-print"></th></tr></thead>
+            <tbody>
+              {list.map(r => {
+                const overdue = new Date(r.plannedEndDate).getTime() < now
+                return (
+                  <tr key={r.id}>
+                    <td><p className="font-medium text-[var(--ink)]">{r.client?.fullName || '—'}</p><p className="text-[11px] font-mono text-[var(--ink-subtle)]">#{r.id}</p></td>
+                    <td className="hidden md:table-cell text-[var(--ink-muted)] text-[12.5px]">{r.vehicle ? `${r.vehicle.brand} ${r.vehicle.model}` : '—'}</td>
+                    <td><span className={clsx('inline-flex items-center gap-1.5 text-[12.5px]', overdue ? 'text-red-500 font-medium' : 'text-[var(--ink-muted)]')}>{overdue && <AlertCircle className="w-3.5 h-3.5" />}{fmtDate(r.plannedEndDate)}{overdue && ' · просрочена'}</span></td>
+                    <td><span className={clsx('pill', r.paymentStatus === 'partial' ? 'pill-warning' : 'pill-danger')}>{r.paymentStatus === 'partial' ? 'частично' : 'не оплачено'}</span></td>
+                    <td className="text-right num-roll font-bold text-[var(--ink)]">{fmt(r.totalAmount || 0)}</td>
+                    <td className="no-print"><button onClick={() => confirmPaid(r)} className="btn-secondary !py-1.5 !px-3 text-[12px] whitespace-nowrap hover:!border-emerald-300 hover:!text-emerald-600"><ShieldCheck className="w-3.5 h-3.5" /> Оплачено</button></td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )
 }
 
-function ExpenseModal({
-  vehicles,
-  onClose,
-  onSave,
-}: {
-  vehicles: Vehicle[]
-  onClose: () => void
-  onSave: (data: ExpenseFormData) => void
-}) {
-  const [formData, setFormData] = useState<ExpenseFormData>({
-    category: 'maintenance',
-    amount: 0,
-    date: new Date().toISOString().split('T')[0],
-    description: '',
-  })
+/* ============================ Deposits ============================ */
+function DepositsTab({ A }: { A: Acc }) {
+  return (
+    <div className="flex flex-col gap-4 fade-up">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="stat-card"><span className="icon-soft icon-soft-amber w-10 h-10 mb-2.5"><ShieldCheck className="w-[18px] h-[18px]" /></span><p className="eyebrow mb-1.5">В залоге сейчас</p><p className="text-[24px] font-bold tracking-tight text-[var(--ink)]"><CountUp value={A.depositsHeld} format={fmt} /></p><p className="text-[11.5px] text-[var(--ink-muted)] mt-1.5">{A.heldList.length} активных аренд</p></div>
+        <div className="stat-card"><span className="icon-soft icon-soft-emerald w-10 h-10 mb-2.5"><ArrowDownRight className="w-[18px] h-[18px]" /></span><p className="eyebrow mb-1.5">Возвращено</p><p className="text-[24px] font-bold tracking-tight text-[var(--ink)]"><CountUp value={A.depositsReturned} format={fmt} /></p></div>
+      </div>
+      {A.heldList.length === 0 ? <div className="card p-10 text-center"><p className="text-[var(--ink-subtle)] text-[13px]">Нет удерживаемых депозитов</p></div> : (
+        <div className="table-container">
+          <table className="table">
+            <thead><tr><th>Клиент</th><th className="hidden md:table-cell">Авто</th><th>Статус аренды</th><th className="text-right">Депозит</th></tr></thead>
+            <tbody>
+              {(A.heldList as Rental[]).map(r => (
+                <tr key={r.id}>
+                  <td><p className="font-medium text-[var(--ink)]">{r.client?.fullName || '—'}</p><p className="text-[11px] font-mono text-[var(--ink-subtle)]">#{r.id}</p></td>
+                  <td className="hidden md:table-cell text-[var(--ink-muted)] text-[12.5px]">{r.vehicle ? `${r.vehicle.brand} ${r.vehicle.model}` : '—'}</td>
+                  <td><span className={clsx('pill', r.status === 'overdue' ? 'pill-warning' : 'pill-info')}>{r.status === 'overdue' ? 'просрочена' : 'активна'}</span></td>
+                  <td className="text-right num-roll font-bold text-[var(--ink)]">{fmt(r.deposit || 0)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    onSave(formData)
+/* ============================ Per-vehicle P&L ============================ */
+function VehiclesTab({ A, period }: { A: Acc; period: { from: string; to: string } }) {
+  const list = A.perVehicle as Acc[]
+  const exportCsv = () => {
+    const data: (string | number)[][] = [['Авто', 'Номер', 'Аренд', 'Выручка', 'Расходы', 'Прибыль', 'Маржа %']]
+    list.forEach(x => data.push([`${x.v.brand} ${x.v.model}`, x.v.licensePlate, x.count, Math.round(x.rev), Math.round(x.exp), Math.round(x.profit), Math.round(x.margin)]))
+    downloadCSV(`pnl_by_vehicle_${period.from}_${period.to}.csv`, data)
   }
+  return (
+    <div className="flex flex-col gap-3 fade-up">
+      <div className="flex justify-end no-print"><button onClick={exportCsv} className="btn-secondary !py-2 text-[12.5px]"><FileSpreadsheet className="w-4 h-4" /> CSV</button></div>
+      {list.length === 0 ? <div className="card p-12 text-center"><span className="icon-soft icon-soft-neutral w-16 h-16 mx-auto mb-4 breathe"><Car className="w-8 h-8" /></span><p className="text-[var(--ink-2)] font-medium">Нет данных за период</p></div> : (
+        <div className="table-container">
+          <table className="table">
+            <thead><tr><th>Автомобиль</th><th className="text-center hidden sm:table-cell">Аренд</th><th className="text-right">Выручка</th><th className="text-right hidden md:table-cell">Расходы</th><th className="text-right">Прибыль</th><th className="text-right hidden lg:table-cell">Маржа</th></tr></thead>
+            <tbody>
+              {list.map((x: Acc) => (
+                <tr key={x.v.id}>
+                  <td>
+                    <div className="flex items-center gap-3">
+                      <span className="icon-soft icon-soft-neutral w-9 h-9"><Car className="w-[18px] h-[18px]" /></span>
+                      <div><p className="font-medium text-[var(--ink)]">{x.v.brand} {x.v.model}</p><p className="text-[11px] font-mono text-[var(--ink-subtle)]">{x.v.licensePlate}</p></div>
+                    </div>
+                  </td>
+                  <td className="text-center hidden sm:table-cell num-roll text-[var(--ink-muted)]">{x.count}</td>
+                  <td className="text-right num-roll text-[var(--ink-2)]">{fmt(x.rev)}</td>
+                  <td className="text-right num-roll text-[var(--ink-muted)] hidden md:table-cell">{fmt(x.exp)}</td>
+                  <td className="text-right num-roll font-bold" style={{ color: x.profit >= 0 ? 'var(--accent)' : '#dc2626' }}>{fmt(x.profit)}</td>
+                  <td className="text-right hidden lg:table-cell">
+                    <span className={clsx('pill', x.margin >= 50 ? 'pill-success' : x.margin >= 0 ? 'pill-warning' : 'pill-danger')}>{Math.round(x.margin)}%</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
 
+/* ============================ Reports ============================ */
+function ReportsTab({ A, period }: { A: Acc; period: { from: string; to: string } }) {
+  const exportPnl = () => {
+    const data: (string | number)[][] = [
+      ['Отчёт о прибылях и убытках'], [`Период: ${period.from} — ${period.to}`], [],
+      ['Показатель', 'Сумма (฿)'],
+      ['Выручка', Math.round(A.revenue)],
+      ['  Получено', Math.round(A.received)],
+      ['  Ожидается', Math.round(A.revenue - A.received)],
+      ['Операционные расходы', Math.round(A.expensesSum)],
+      ['Обслуживание / ТО', Math.round(A.maintSum)],
+      ['Чистая прибыль', Math.round(A.profit)],
+      [`Маржа, %`, Math.round(A.margin)],
+      ['К получению (всего)', Math.round(A.receivables)],
+      ['Депозиты в залоге', Math.round(A.depositsHeld)],
+    ]
+    downloadCSV(`pnl_${period.from}_${period.to}.csv`, data)
+  }
+  return (
+    <div className="flex flex-col gap-3 fade-up">
+      <div className="flex items-center justify-between gap-3 no-print">
+        <h2 className="text-[14px] font-semibold text-[var(--ink-2)]">Отчёт о прибылях и убытках</h2>
+        <div className="flex gap-2">
+          <button onClick={exportPnl} className="btn-secondary !py-2 text-[12.5px]"><Download className="w-4 h-4" /> CSV</button>
+          <button onClick={() => window.print()} className="btn-primary !py-2 text-[12.5px]"><Printer className="w-4 h-4" /> Печать</button>
+        </div>
+      </div>
+      <section className="card p-6 print-area">
+        <div className="flex items-center justify-between mb-5 pb-4 border-b border-[var(--border)]">
+          <div className="flex items-center gap-3">
+            <span className="icon-soft icon-soft-ink w-11 h-11"><Wallet className="w-5 h-5" /></span>
+            <div><h3 className="text-[17px] font-bold text-[var(--ink)]">P&L · UNICAR</h3><p className="text-[12px] text-[var(--ink-muted)]">{period.from} — {period.to}</p></div>
+          </div>
+        </div>
+        <div className="max-w-xl divide-y divide-[var(--border)]">
+          <PnlRow label="Выручка (начислено)" value={A.revenue} />
+          <PnlRow label="— Получено" value={A.received} muted />
+          <PnlRow label="— Ожидается к оплате" value={A.revenue - A.received} muted />
+          <PnlRow label="Операционные расходы" value={-A.expensesSum} />
+          <PnlRow label="Обслуживание / ТО" value={-A.maintSum} />
+          <PnlRow label="Чистая прибыль" value={A.profit} strong />
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
+          <MiniStat label="Маржа" value={`${Math.round(A.margin)}%`} />
+          <MiniStat label="Аренд" value={String(A.periodRentals.length)} />
+          <MiniStat label="К получению" value={fmt(A.receivables)} />
+          <MiniStat label="Депозиты" value={fmt(A.depositsHeld)} />
+        </div>
+      </section>
+    </div>
+  )
+}
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-xl bg-[var(--surface-2)] border border-[var(--border)] px-3 py-2.5"><p className="text-[10px] uppercase tracking-wide text-[var(--ink-subtle)]">{label}</p><p className="text-[15px] font-bold text-[var(--ink)] num-roll mt-0.5">{value}</p></div>
+}
+
+function EmptyMini({ text }: { text: string }) {
+  return <div className="py-10 text-center"><p className="text-[13px] text-[var(--ink-subtle)]">{text}</p></div>
+}
+
+/* ============================ Expense modal ============================ */
+function ExpenseModal({ vehicles, onClose, onSave }: { vehicles: Vehicle[]; onClose: () => void; onSave: (data: ExpenseFormData) => void }) {
+  const [formData, setFormData] = useState<ExpenseFormData>({ category: 'maintenance', amount: 0, date: isoToday(), description: '' })
+  const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); onSave(formData) }
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="modal-overlay" onClick={onClose} />
       <div className="flex min-h-full items-center justify-center p-4">
-        <div className="relative bg-white dark:bg-zinc-900 rounded-2xl shadow-xl w-full max-w-md border border-gray-100 dark:border-zinc-800">
-          <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-zinc-800">
+        <div className="modal-content w-full max-w-md">
+          <div className="modal-header flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gray-50 dark:bg-zinc-800 flex items-center justify-center">
-                <WalletIcon className="w-5 h-5 text-gray-400" />
-              </div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Добавить расход</h2>
+              <span className="icon-soft icon-soft-rose w-10 h-10"><ReceiptText className="w-[18px] h-[18px]" /></span>
+              <h2 className="modal-header-title">Добавить расход</h2>
             </div>
-            <button onClick={onClose} className="p-2 rounded-lg bg-gray-50 dark:bg-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors">
-              <CloseIcon className="w-5 h-5 text-gray-500" />
-            </button>
+            <button onClick={onClose} className="btn-icon"><X className="w-5 h-5" /></button>
           </div>
-
-          <form onSubmit={handleSubmit} className="p-4 space-y-4">
+          <form onSubmit={handleSubmit} className="p-5 space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <SelectDropdown
-                label="Категория"
-                required
-                value={formData.category}
-                onChange={(value) => setFormData({ ...formData, category: value as ExpenseCategory })}
-                options={Object.entries(categoryLabels).map(([value, label]) => ({ value, label }))}
-              />
-              <DatePicker
-                label="Дата"
-                value={formData.date}
-                onChange={(value) => setFormData({ ...formData, date: value })}
-              />
+              <SelectDropdown label="Категория" required value={formData.category} onChange={(v) => setFormData({ ...formData, category: v as ExpenseCategory })} options={Object.entries(categoryLabels).map(([value, label]) => ({ value, label }))} />
+              <DatePicker label="Дата" value={formData.date} onChange={(v) => setFormData({ ...formData, date: v })} />
             </div>
-
-            <SelectDropdown
-              label="Автомобиль"
-              value={formData.vehicleId?.toString() ?? ''}
-              onChange={(value) => setFormData({ ...formData, vehicleId: value ? parseInt(value) : undefined })}
-              options={[
-                { value: '', label: 'Без автомобиля' },
-                ...vehicles.map((vehicle) => ({
-                  value: vehicle.id.toString(),
-                  label: `${vehicle.brand} ${vehicle.model} (${vehicle.licensePlate})`
-                }))
-              ]}
-              placeholder="Выберите автомобиль"
-            />
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Сумма *
-              </label>
-              <input
-                type="number"
-                required
-                min="0"
-                value={formData.amount}
-                onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) })}
-                className="input"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Описание *
-              </label>
-              <textarea
-                required
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                rows={3}
-                className="input"
-              />
-            </div>
-
-            <div className="flex gap-3 pt-4">
-              <button type="button" onClick={onClose} className="flex-1 btn btn-secondary">
-                Отмена
-              </button>
-              <button type="submit" className="flex-1 btn btn-primary">
-                Добавить
-              </button>
+            <SelectDropdown label="Автомобиль" value={formData.vehicleId?.toString() ?? ''} onChange={(v) => setFormData({ ...formData, vehicleId: v ? parseInt(v) : undefined })}
+              options={[{ value: '', label: 'Без автомобиля' }, ...vehicles.map(v => ({ value: v.id.toString(), label: `${v.brand} ${v.model} (${v.licensePlate})` }))]} placeholder="Выберите автомобиль" />
+            <div><label className="form-label">Сумма *</label><input type="number" required min="0" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) })} className="input" /></div>
+            <div><label className="form-label">Описание *</label><textarea required value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} rows={3} className="input" /></div>
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={onClose} className="btn-secondary flex-1">Отмена</button>
+              <button type="submit" className="btn-primary flex-1">Добавить</button>
             </div>
           </form>
         </div>
       </div>
     </div>
-  )
-}
-
-function PlusIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-    </svg>
-  )
-}
-
-function WalletIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-    </svg>
-  )
-}
-
-function CloseIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-    </svg>
-  )
-}
-
-function ArrowUpIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M7 11l5-5m0 0l5 5m-5-5v12" />
-    </svg>
-  )
-}
-
-function ArrowDownIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M17 13l-5 5m0 0l-5-5m5 5V6" />
-    </svg>
-  )
-}
-
-function TrendingUpIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-    </svg>
-  )
-}
-
-function ChartBarIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 13h2v8H3v-8zm6-4h2v12H9V9zm6-6h2v18h-2V3zm6 10h2v8h-2v-8z" />
-    </svg>
-  )
-}
-
-function CarIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M8 17h8M8 17a2 2 0 11-4 0 2 2 0 014 0zm8 0a2 2 0 104 0 2 2 0 00-4 0zM5 17H4a2 2 0 01-2-2v-4a2 2 0 012-2h1.586a1 1 0 00.707-.293l2.414-2.414a1 1 0 01.707-.293h5.172a1 1 0 01.707.293l2.414 2.414a1 1 0 00.707.293H20a2 2 0 012 2v4a2 2 0 01-2 2h-1" />
-    </svg>
   )
 }

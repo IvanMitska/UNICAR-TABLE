@@ -224,6 +224,7 @@ router.post('/', async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   const { id } = req.params
   const {
+    startDate,
     plannedEndDate,
     rateType,
     rateAmount,
@@ -248,7 +249,8 @@ router.put('/:id', async (req: Request, res: Response) => {
     const existing = existingResult.rows[0] as Record<string, unknown>
 
     // Recalculate total amount using smooth discount grid
-    const start = new Date(existing.start_date as string)
+    const startValue = startDate || (existing.start_date as string)
+    const start = new Date(startValue)
     const end = new Date(plannedEndDate)
     const days = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)))
 
@@ -260,8 +262,8 @@ router.put('/:id', async (req: Request, res: Response) => {
       UPDATE rentals SET
         planned_end_date = $1, rate_type = $2, rate_amount = $3, deposit = $4,
         payment_method = $5, payment_status = $6, total_amount = $7,
-        extras = $8, condition_start = $9, notes = $10
-      WHERE id = $11
+        extras = $8, condition_start = $9, notes = $10, start_date = $11
+      WHERE id = $12
       RETURNING *
     `, [
       plannedEndDate,
@@ -274,6 +276,7 @@ router.put('/:id', async (req: Request, res: Response) => {
       extras ?? existing.extras,
       conditionStart ?? existing.condition_start,
       notes ?? existing.notes,
+      startValue,
       id
     ])
 

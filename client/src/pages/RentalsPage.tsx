@@ -5,6 +5,34 @@ import clsx from 'clsx'
 import SelectDropdown from '@/components/ui/SelectDropdown'
 import DatePicker from '@/components/ui/DatePicker'
 import { getRentalPriceInfo, calculateDays } from '@/utils/pricing'
+import { CountUp } from '@/components/ui/CountUp'
+import RentalDocument from '@/components/RentalDocument'
+import {
+  FileText as DocsIcon,
+  Car as CarIcon,
+  KeyRound as KeyIcon,
+  Calendar as CalendarIcon,
+  Banknote as CurrencyIcon,
+  Banknote as CurrencyBahtIcon,
+  Gauge as GaugeIcon,
+  Gauge as SpeedometerIcon,
+  Check as CheckIcon,
+  Check as CheckSmallIcon,
+  Plus as PlusIcon,
+  ClipboardList as ClipboardIcon,
+  X as CloseIcon,
+  User as UserIcon,
+  CheckCircle2 as CheckCircleIcon,
+  SquarePen as EditIcon,
+  Phone as PhoneIcon,
+  IdCard as IdCardIcon,
+  Fuel as FuelIcon,
+  ChevronDown as ChevronIcon,
+  Search as SearchIcon,
+  UserPlus as UserPlusIcon,
+  Clock as ClockIcon,
+  History as HistoryIcon,
+} from 'lucide-react'
 
 // Custom Select Component
 interface SelectOption {
@@ -205,6 +233,8 @@ export default function RentalsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingRental, setEditingRental] = useState<Rental | null>(null)
   const [viewingVehicle, setViewingVehicle] = useState<Vehicle | null>(null)
+  const [docRental, setDocRental] = useState<Rental | null>(null)
+  const [preset, setPreset] = useState<{ vehicleId?: number; start?: string } | null>(null)
 
   useEffect(() => {
     fetchData()
@@ -212,10 +242,24 @@ export default function RentalsPage() {
 
   useEffect(() => {
     if (searchParams.get('action') === 'new') {
+      const vid = searchParams.get('vehicleId')
+      const start = searchParams.get('start')
+      setEditingRental(null)
+      setPreset({ vehicleId: vid ? Number(vid) : undefined, start: start || undefined })
       setIsModalOpen(true)
       setSearchParams({}, { replace: true })
     }
   }, [searchParams, setSearchParams])
+
+  // Open a specific rental (deep-link from calendar)
+  useEffect(() => {
+    const openId = searchParams.get('open')
+    if (openId && rentals.length) {
+      const r = rentals.find(x => x.id === Number(openId))
+      if (r) { setEditingRental(r); setIsModalOpen(true) }
+      setSearchParams({}, { replace: true })
+    }
+  }, [searchParams, rentals, setSearchParams])
 
   const fetchData = async () => {
     try {
@@ -333,6 +377,7 @@ export default function RentalsPage() {
           <button
             onClick={() => {
               setEditingRental(null)
+              setPreset(null)
               setIsModalOpen(true)
             }}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-semibold hover:bg-gray-800 dark:hover:bg-gray-100 transition-all active:scale-[0.98] shadow-lg shadow-gray-900/10 dark:shadow-white/10"
@@ -344,57 +389,44 @@ export default function RentalsPage() {
       </header>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '0ms' }}>
-          <div className="absolute inset-0 bg-gradient-to-br from-gray-50/50 to-transparent dark:from-zinc-800/10 dark:to-transparent pointer-events-none" />
-          <div className="relative">
-            <span className="text-gray-500 dark:text-gray-400 mb-4 block"><KeyIcon className="w-5 h-5" /></span>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{stats.active}</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Активных</p>
-          </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 stagger-animation">
+        <div className="stat-card card-hover">
+          <span className="icon-soft icon-soft-amber w-9 h-9 mb-2.5"><KeyIcon className="w-[18px] h-[18px]" /></span>
+          <p className="eyebrow mb-1">Активных</p>
+          <p className="text-[26px] leading-none font-bold tracking-tight text-[var(--ink)]"><CountUp value={stats.active} /></p>
         </div>
-        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-orange-200/60 dark:border-orange-900/30 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '50ms' }}>
-          <div className="absolute inset-0 bg-gradient-to-br from-orange-50/50 to-transparent dark:from-orange-900/10 dark:to-transparent pointer-events-none" />
-          <div className="relative">
-            <span className="text-orange-500 dark:text-orange-400 mb-4 block"><ClockIcon className="w-5 h-5" /></span>
-            <p className="text-3xl font-bold text-orange-600 dark:text-orange-400 tracking-tight">{stats.overdue}</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Просрочено</p>
-          </div>
+        <div className="stat-card card-hover stripe-l" style={{ ['--stripe' as string]: '#f59e0b' }}>
+          <span className="icon-soft icon-soft-rose w-9 h-9 mb-2.5"><ClockIcon className="w-[18px] h-[18px]" /></span>
+          <p className="eyebrow mb-1">Просрочено</p>
+          <p className="text-[26px] leading-none font-bold tracking-tight" style={{ color: stats.overdue > 0 ? '#d97706' : 'var(--ink)' }}><CountUp value={stats.overdue} /></p>
         </div>
-        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '100ms' }}>
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/50 to-transparent dark:from-emerald-900/10 dark:to-transparent pointer-events-none" />
-          <div className="relative">
-            <span className="text-emerald-500 dark:text-emerald-400 mb-4 block"><CheckCircleIcon className="w-5 h-5" /></span>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{stats.completed}</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Завершено</p>
-          </div>
+        <div className="stat-card card-hover">
+          <span className="icon-soft icon-soft-emerald w-9 h-9 mb-2.5"><CheckCircleIcon className="w-[18px] h-[18px]" /></span>
+          <p className="eyebrow mb-1">Завершено</p>
+          <p className="text-[26px] leading-none font-bold tracking-tight text-[var(--ink)]"><CountUp value={stats.completed} /></p>
         </div>
-        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '150ms' }}>
-          <div className="absolute inset-0 bg-gradient-to-br from-gray-50/50 to-transparent dark:from-zinc-800/20 dark:to-transparent pointer-events-none" />
-          <div className="relative">
-            <span className="text-gray-400 dark:text-gray-500 mb-4 block"><ClipboardIcon className="w-5 h-5" /></span>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{stats.total}</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Всего</p>
-          </div>
+        <div className="stat-card card-hover">
+          <span className="icon-soft icon-soft-neutral w-9 h-9 mb-2.5"><ClipboardIcon className="w-[18px] h-[18px]" /></span>
+          <p className="eyebrow mb-1">Всего</p>
+          <p className="text-[26px] leading-none font-bold tracking-tight text-[var(--ink)]"><CountUp value={stats.total} /></p>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-2 flex-wrap">
-        {(['all', 'active', 'overdue', 'completed', 'cancelled'] as const).map((status) => (
-          <button
-            key={status}
-            onClick={() => setStatusFilter(status)}
-            className={clsx(
-              'px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
-              statusFilter === status
-                ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900'
-                : 'bg-white dark:bg-zinc-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-zinc-800 border border-gray-100 dark:border-zinc-800'
-            )}
-          >
-            {status === 'all' ? 'Все' : statusLabels[status]}
-          </button>
-        ))}
+      {/* Filters — segmented control with counts */}
+      <div className="segment overflow-x-auto max-w-full">
+        {(['all', 'active', 'overdue', 'completed', 'cancelled'] as const).map((status) => {
+          const count = status === 'all' ? rentals.length : rentals.filter(r => r.status === status).length
+          return (
+            <button
+              key={status}
+              onClick={() => setStatusFilter(status)}
+              className={clsx('segment-item', statusFilter === status && 'is-active')}
+            >
+              {status === 'all' ? 'Все' : statusLabels[status]}
+              <span className="segment-item-count">{count}</span>
+            </button>
+          )
+        })}
       </div>
 
       {/* Rentals list */}
@@ -419,8 +451,8 @@ export default function RentalsPage() {
                 const vehicle = vehicles.find(v => v.id === rental.vehicleId)
                 if (vehicle) setViewingVehicle(vehicle)
               }}
-              className="p-5 animate-slide-up rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm cursor-pointer hover:border-gray-200 dark:hover:border-zinc-700 hover:shadow-md transition-all"
-              style={{ animationDelay: `${index * 50}ms` }}
+              className={clsx('card card-hover p-5 animate-slide-up cursor-pointer', rental.status === 'overdue' && 'stripe-l')}
+              style={{ animationDelay: `${index * 50}ms`, ...(rental.status === 'overdue' ? { ['--stripe' as string]: '#f59e0b' } : {}) }}
             >
               <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                 <div className="flex-1">
@@ -499,6 +531,13 @@ export default function RentalsPage() {
                     <EditIcon className="w-4 h-4 mr-1.5" />
                     Изменить
                   </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setDocRental(rental) }}
+                    className="btn-icon"
+                    title="Документы (договор / акт / счёт)"
+                  >
+                    <DocsIcon className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             </div>
@@ -510,7 +549,9 @@ export default function RentalsPage() {
       {isModalOpen && (
         <RentalModal
           rental={editingRental}
-          vehicles={vehicles.filter(v => v.status === 'available' || v.id === editingRental?.vehicleId)}
+          presetVehicleId={preset?.vehicleId}
+          presetStart={preset?.start}
+          vehicles={vehicles.filter(v => v.status === 'available' || v.id === editingRental?.vehicleId || v.id === preset?.vehicleId)}
           clients={clients.filter(c => c.status === 'active')}
           onClose={() => {
             setIsModalOpen(false)
@@ -531,6 +572,9 @@ export default function RentalsPage() {
           onClose={() => setViewingVehicle(null)}
         />
       )}
+
+      {/* Rental documents (contract / act / invoice) */}
+      {docRental && <RentalDocument rental={docRental} onClose={() => setDocRental(null)} />}
     </div>
   )
 }
@@ -614,8 +658,10 @@ function PriceCalculator({
   )
 }
 
-function RentalModal({
+export function RentalModal({
   rental,
+  presetVehicleId,
+  presetStart,
   vehicles,
   clients: initialClients,
   onClose,
@@ -623,6 +669,8 @@ function RentalModal({
   onClientCreated,
 }: {
   rental: Rental | null
+  presetVehicleId?: number
+  presetStart?: string
   vehicles: Vehicle[]
   clients: Client[]
   onClose: () => void
@@ -642,12 +690,13 @@ function RentalModal({
     address: '',
   })
 
+  const presetVehicle = presetVehicleId ? vehicles.find(v => v.id === presetVehicleId) : undefined
   const [formData, setFormData] = useState<RentalFormData>({
-    vehicleId: rental?.vehicleId ?? (vehicles[0]?.id ?? 0),
+    vehicleId: rental?.vehicleId ?? presetVehicleId ?? (vehicles[0]?.id ?? 0),
     clientId: rental?.clientId ?? (initialClients[0]?.id ?? 0),
-    startDate: rental?.startDate?.split('T')[0] ?? new Date().toISOString().split('T')[0],
+    startDate: rental?.startDate?.split('T')[0] ?? presetStart ?? new Date().toISOString().split('T')[0],
     plannedEndDate: rental?.plannedEndDate?.split('T')[0] ?? '',
-    mileageStart: rental?.mileageStart ?? (vehicles[0]?.mileage ?? 0),
+    mileageStart: rental?.mileageStart ?? (presetVehicle?.mileage ?? vehicles[0]?.mileage ?? 0),
     fuelLevelStart: rental?.fuelLevelStart ?? 100,
     rateType: rental?.rateType ?? 'daily',
     rateAmount: rental?.rateAmount ?? 2500,
@@ -1145,194 +1194,6 @@ function RentalModal({
         </div>
       </div>
     </div>
-  )
-}
-
-function CarIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M8 17h8M8 17a2 2 0 11-4 0 2 2 0 014 0zm8 0a2 2 0 104 0 2 2 0 00-4 0zM5 17H4a2 2 0 01-2-2v-4a2 2 0 012-2h1.586a1 1 0 00.707-.293l2.414-2.414a1 1 0 01.707-.293h5.172a1 1 0 01.707.293l2.414 2.414a1 1 0 00.707.293H20a2 2 0 012 2v4a2 2 0 01-2 2h-1" />
-    </svg>
-  )
-}
-
-function KeyIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
-    </svg>
-  )
-}
-
-function CalendarIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-    </svg>
-  )
-}
-
-function CurrencyIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  )
-}
-
-function GaugeIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-    </svg>
-  )
-}
-
-function CheckIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-    </svg>
-  )
-}
-
-// Icons
-function PlusIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-    </svg>
-  )
-}
-
-function ClipboardIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-    </svg>
-  )
-}
-
-function CloseIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-    </svg>
-  )
-}
-
-function UserIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-    </svg>
-  )
-}
-
-function CheckCircleIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  )
-}
-
-function EditIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-    </svg>
-  )
-}
-
-function CurrencyBahtIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33" />
-    </svg>
-  )
-}
-
-function SpeedometerIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2" />
-      <circle cx="12" cy="12" r="9" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-function PhoneIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
-    </svg>
-  )
-}
-
-function IdCardIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5zm6-10.125a1.875 1.875 0 11-3.75 0 1.875 1.875 0 013.75 0zm1.294 6.336a6.721 6.721 0 01-3.17.789 6.721 6.721 0 01-3.168-.789 3.376 3.376 0 016.338 0z" />
-    </svg>
-  )
-}
-
-function FuelIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h10.5M3.75 21V6a2.25 2.25 0 012.25-2.25h6a2.25 2.25 0 012.25 2.25v15M3.75 21h-1.5m12-14.25h2.25a1.5 1.5 0 011.5 1.5v6a1.5 1.5 0 01-1.5 1.5h-.75M14.25 6.75v3" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M18.75 9v6.75" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 9h6v4.5H6z" />
-    </svg>
-  )
-}
-
-function ChevronIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-    </svg>
-  )
-}
-
-function SearchIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-    </svg>
-  )
-}
-
-function CheckSmallIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-    </svg>
-  )
-}
-
-function UserPlusIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z" />
-    </svg>
-  )
-}
-
-function ClockIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  )
-}
-
-function HistoryIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
   )
 }
 

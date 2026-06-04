@@ -11,6 +11,8 @@ import FinancesPage from './pages/FinancesPage'
 import SettingsPage from './pages/SettingsPage'
 import BookingRequestsPage from './pages/BookingRequestsPage'
 import UsersPage from './pages/UsersPage'
+import AlertsPage from './pages/AlertsPage'
+import CalendarPage from './pages/CalendarPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth()
@@ -48,6 +50,8 @@ function App() {
         <Route path="clients" element={<ClientsPage />} />
         <Route path="rentals" element={<RentalsPage />} />
         <Route path="booking-requests" element={<BookingRequestsPage />} />
+        <Route path="alerts" element={<AlertsPage />} />
+        <Route path="calendar" element={<CalendarPage />} />
         <Route path="maintenance" element={<MaintenancePage />} />
         <Route path="finances" element={<FinancesPage />} />
         <Route path="users" element={<UsersPage />} />

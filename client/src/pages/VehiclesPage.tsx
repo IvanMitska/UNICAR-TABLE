@@ -6,6 +6,56 @@ import SelectDropdown from '@/components/ui/SelectDropdown'
 import DatePicker from '@/components/ui/DatePicker'
 import VehicleMetadataEditor from '@/components/vehicles/VehicleMetadataEditor'
 import { useAuth } from '@/context/AuthContext'
+import { CountUp } from '@/components/ui/CountUp'
+import {
+  History, User, Info, Gauge, Banknote, Plus, Car, Search, CheckCircle2,
+  KeyRound, Wrench, Calendar, SquarePen, Trash2, X, Globe,
+  LayoutGrid, List, ArrowUpDown, Fuel, ShieldAlert,
+} from 'lucide-react'
+
+type SortKey = 'name' | 'price-desc' | 'price-asc' | 'year-desc' | 'mileage-asc'
+
+const sortLabels: Record<SortKey, string> = {
+  name: 'По названию',
+  'price-desc': 'Дороже сначала',
+  'price-asc': 'Дешевле сначала',
+  'year-desc': 'Новее сначала',
+  'mileage-asc': 'Меньше пробег',
+}
+
+const statusPill: Record<VehicleStatus, string> = {
+  available: 'pill-success',
+  rented: 'pill-info',
+  maintenance: 'pill-warning',
+  archived: 'pill-neutral',
+}
+
+// Days until a date (null if no date). Negative = already passed.
+function daysUntil(dateStr: string | null): number | null {
+  if (!dateStr) return null
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return null
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return Math.round((d.getTime() - today.getTime()) / 86400000)
+}
+
+// Soonest document concern: expired or expiring within 30 days.
+function docWarning(v: Vehicle): { label: string; expired: boolean } | null {
+  const items: { name: string; days: number | null }[] = [
+    { name: 'Страховка', days: daysUntil(v.insuranceExpiry) },
+    { name: 'Техосмотр', days: daysUntil(v.inspectionExpiry) },
+  ]
+  const concerning = items
+    .filter((i) => i.days !== null && (i.days as number) <= 30)
+    .sort((a, b) => (a.days as number) - (b.days as number))
+  if (concerning.length === 0) return null
+  const top = concerning[0]
+  const d = top.days as number
+  if (d < 0) return { label: `${top.name}: истекла`, expired: true }
+  if (d === 0) return { label: `${top.name}: сегодня`, expired: true }
+  return { label: `${top.name}: ${d} дн.`, expired: false }
+}
 
 const statusLabels: Record<VehicleStatus, string> = {
   available: 'Свободен',
@@ -39,8 +89,13 @@ export default function VehiclesPage() {
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null)
   const [viewingVehicle, setViewingVehicle] = useState<Vehicle | null>(null)
   const [metadataVehicle, setMetadataVehicle] = useState<Vehicle | null>(null)
+  const [view, setView] = useState<'grid' | 'list'>(() => (typeof localStorage !== 'undefined' && localStorage.getItem('vehiclesView') === 'list' ? 'list' : 'grid'))
+  const [sortBy, setSortBy] = useState<SortKey>('name')
+  const [onlyExpiring, setOnlyExpiring] = useState(false)
   const { canEdit } = useAuth()
   const canEditVehicles = canEdit('vehicle')
+
+  useEffect(() => { localStorage.setItem('vehiclesView', view) }, [view])
 
   useEffect(() => {
     fetchData()
@@ -120,7 +175,19 @@ export default function VehiclesPage() {
     const matchesStatus =
       statusFilter === 'all' || vehicle.status === statusFilter
 
-    return matchesSearch && matchesStatus
+    const matchesExpiring = !onlyExpiring || docWarning(vehicle) !== null
+
+    return matchesSearch && matchesStatus && matchesExpiring
+  })
+
+  const displayedVehicles = [...filteredVehicles].sort((a, b) => {
+    switch (sortBy) {
+      case 'price-desc': return (b.rateMonthly || 0) - (a.rateMonthly || 0)
+      case 'price-asc': return (a.rateMonthly || 0) - (b.rateMonthly || 0)
+      case 'year-desc': return (b.year || 0) - (a.year || 0)
+      case 'mileage-asc': return (a.mileage || 0) - (b.mileage || 0)
+      default: return `${a.brand} ${a.model}`.localeCompare(`${b.brand} ${b.model}`)
+    }
   })
 
   // Stats
@@ -131,139 +198,154 @@ export default function VehiclesPage() {
     maintenance: vehicles.filter(v => v.status === 'maintenance').length,
   }
 
+  // Vehicles with expiring/expired documents (insurance or inspection)
+  const expiringVehicles = vehicles.filter(v => docWarning(v) !== null)
+
+  const statusCount = (s: VehicleStatus | 'all') =>
+    s === 'all' ? vehicles.length : vehicles.filter(v => v.status === s).length
+
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <div className="relative">
-          <div className="w-12 h-12 rounded-full border-[3px] border-gray-200 dark:border-zinc-700" />
-          <div className="absolute inset-0 w-12 h-12 rounded-full border-[3px] border-transparent border-t-gray-900 dark:border-t-white animate-spin" />
+      <div className="flex flex-col gap-6 max-w-7xl mx-auto">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[...Array(4)].map((_, i) => <div key={i} className="h-[112px] rounded-[18px] skeleton" />)}
+        </div>
+        <div className="h-11 rounded-xl skeleton" />
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {[...Array(6)].map((_, i) => <div key={i} className="h-[240px] rounded-2xl skeleton" />)}
         </div>
       </div>
     )
   }
 
+  const openVehicle = (vehicle: Vehicle) => ({
+    onView: () => setViewingVehicle(vehicle),
+    onEdit: () => { setEditingVehicle(vehicle); setIsModalOpen(true) },
+    onDelete: () => handleDelete(vehicle.id),
+    onOpenMetadata: () => setMetadataVehicle(vehicle),
+  })
+
   return (
-    <div className="flex flex-col gap-8 max-w-7xl mx-auto">
+    <div className="flex flex-col gap-6 max-w-7xl mx-auto">
       {/* Header */}
-      <header className="animate-slide-up">
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Автопарк</p>
-            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white tracking-tight">
-              Автомобили
-            </h1>
+      <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 fade-up">
+        <div>
+          <p className="eyebrow mb-1.5">Автопарк</p>
+          <div className="flex items-center gap-3">
+            <h1 className="text-[28px] sm:text-[32px] font-bold tracking-tight text-[var(--ink)] leading-none">Автомобили</h1>
+            <span className="pill pill-neutral">{vehicles.length}</span>
           </div>
-          {canEditVehicles && (
-            <button
-              onClick={() => {
-                setEditingVehicle(null)
-                setIsModalOpen(true)
-              }}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-semibold hover:bg-gray-800 dark:hover:bg-gray-100 transition-all active:scale-[0.98] shadow-lg shadow-gray-900/10 dark:shadow-white/10"
-            >
-              <PlusIcon className="w-4 h-4" />
-              Добавить авто
-            </button>
-          )}
         </div>
+        {canEditVehicles && (
+          <button onClick={() => { setEditingVehicle(null); setIsModalOpen(true) }} className="btn-primary">
+            <PlusIcon className="w-4 h-4" />
+            Добавить авто
+          </button>
+        )}
       </header>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '0ms' }}>
-          <div className="absolute inset-0 bg-gradient-to-br from-gray-50/50 to-transparent dark:from-zinc-800/20 dark:to-transparent pointer-events-none" />
-          <div className="relative">
-            <span className="text-gray-400 dark:text-gray-500 mb-4 block"><CarIcon className="w-5 h-5" /></span>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{stats.total}</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Всего</p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 stagger-animation">
+        <StatCard label="Всего" value={stats.total} tone="neutral" icon={<Car className="w-[18px] h-[18px]" />} />
+        <StatCard label="Свободно" value={stats.available} tone="emerald" icon={<CheckCircle2 className="w-[18px] h-[18px]" />} />
+        <StatCard label="В аренде" value={stats.rented} tone="amber" icon={<KeyRound className="w-[18px] h-[18px]" />} />
+        <StatCard label="На ТО" value={stats.maintenance} tone="rose" icon={<Wrench className="w-[18px] h-[18px]" />} />
+      </div>
+
+      {/* Documents alert */}
+      {expiringVehicles.length > 0 && (
+        <div className="card stripe-l p-3.5 flex items-center gap-3 fade-up" style={{ ['--stripe' as string]: '#f59e0b', background: 'var(--accent-soft)', borderColor: 'var(--accent-soft-border)' }}>
+          <span className="icon-soft icon-soft-amber w-10 h-10"><ShieldAlert className="w-[19px] h-[19px]" /></span>
+          <div className="flex-1 min-w-0">
+            <p className="text-[13.5px] font-semibold" style={{ color: 'var(--accent)' }}>Документы требуют внимания</p>
+            <p className="text-[12px] text-[var(--ink-muted)]">У {expiringVehicles.length} авто истекает или истёк срок страховки / техосмотра</p>
           </div>
+          <button
+            onClick={() => setOnlyExpiring(v => !v)}
+            className={clsx('text-[12px] font-medium px-3 py-1.5 rounded-full transition-colors', onlyExpiring ? 'bg-[var(--ink)] text-[var(--surface)]' : 'btn-secondary')}
+          >
+            {onlyExpiring ? 'Сбросить' : 'Показать'}
+          </button>
         </div>
-        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '50ms' }}>
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/50 to-transparent dark:from-emerald-900/10 dark:to-transparent pointer-events-none" />
-          <div className="relative">
-            <span className="text-emerald-500 dark:text-emerald-400 mb-4 block"><CheckIcon className="w-5 h-5" /></span>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{stats.available}</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Свободно</p>
-          </div>
+      )}
+
+      {/* Toolbar: search + sort + view */}
+      <div className="flex flex-col lg:flex-row gap-3 fade-up">
+        <div className="flex-1 relative">
+          <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-[var(--ink-subtle)]" />
+          <input
+            type="text"
+            placeholder="Поиск по марке, модели или номеру…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="input !pl-11"
+          />
         </div>
-        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '100ms' }}>
-          <div className="absolute inset-0 bg-gradient-to-br from-gray-50/50 to-transparent dark:from-zinc-800/10 dark:to-transparent pointer-events-none" />
-          <div className="relative">
-            <span className="text-gray-500 dark:text-gray-400 mb-4 block"><KeyIcon className="w-5 h-5" /></span>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{stats.rented}</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">В аренде</p>
-          </div>
-        </div>
-        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '150ms' }}>
-          <div className="absolute inset-0 bg-gradient-to-br from-orange-50/50 to-transparent dark:from-orange-900/10 dark:to-transparent pointer-events-none" />
-          <div className="relative">
-            <span className="text-orange-500 dark:text-orange-400 mb-4 block"><WrenchIcon className="w-5 h-5" /></span>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{stats.maintenance}</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">На ТО</p>
+        <div className="flex items-center gap-2">
+          <span className="hidden sm:flex items-center text-[var(--ink-subtle)]"><ArrowUpDown className="w-[18px] h-[18px]" /></span>
+          <SelectDropdown
+            className="w-[185px]"
+            value={sortBy}
+            onChange={(v) => setSortBy(v as SortKey)}
+            options={Object.entries(sortLabels).map(([value, label]) => ({ value, label }))}
+          />
+          <div className="segment">
+            <button className={clsx('segment-item !px-3', view === 'grid' && 'is-active')} onClick={() => setView('grid')} aria-label="Плитки"><LayoutGrid className="w-[16px] h-[16px]" /></button>
+            <button className={clsx('segment-item !px-3', view === 'list' && 'is-active')} onClick={() => setView('list')} aria-label="Список"><List className="w-[16px] h-[16px]" /></button>
           </div>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 animate-slide-up" style={{ animationDelay: '200ms' }}>
-        <div className="flex-1 relative">
-          <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 dark:text-gray-400" />
-          <input
-            type="text"
-            placeholder="Поиск по марке, модели или номеру..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="input-enhanced pl-12"
-          />
-        </div>
-        <div className="flex gap-2 flex-wrap">
+      {/* Status segment + result count */}
+      <div className="flex items-center justify-between gap-3 flex-wrap -mt-1">
+        <div className="segment overflow-x-auto max-w-full">
           {(['all', 'available', 'rented', 'maintenance'] as const).map((status) => (
-            <button
-              key={status}
-              onClick={() => setStatusFilter(status)}
-              className={clsx(
-                'px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
-                statusFilter === status
-                  ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900'
-                  : 'bg-white dark:bg-zinc-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-zinc-800 border border-gray-100 dark:border-zinc-800'
-              )}
-            >
+            <button key={status} onClick={() => setStatusFilter(status)} className={clsx('segment-item', statusFilter === status && 'is-active')}>
               {status === 'all' ? 'Все' : statusLabels[status]}
+              <span className="segment-item-count">{statusCount(status)}</span>
             </button>
           ))}
         </div>
+        <p className="text-[12px] text-[var(--ink-muted)]">Показано <span className="font-semibold text-[var(--ink-2)] num-roll">{displayedVehicles.length}</span></p>
       </div>
 
-      {/* Vehicles grid */}
-      {filteredVehicles.length === 0 ? (
-        <div className="p-12 text-center animate-slide-up rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm" style={{ animationDelay: '250ms' }}>
-          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-50 dark:bg-zinc-800 flex items-center justify-center">
-            <CarIcon className="w-8 h-8 text-gray-400" />
-          </div>
-          <p className="text-gray-500 dark:text-gray-400 font-medium">
+      {/* Vehicles */}
+      {displayedVehicles.length === 0 ? (
+        <div className="card p-12 text-center fade-up">
+          <span className="icon-soft icon-soft-neutral w-16 h-16 mx-auto mb-4 breathe"><Car className="w-8 h-8" /></span>
+          <p className="text-[var(--ink-2)] font-medium">
             {vehicles.length === 0 ? 'Авто пока нет' : 'Авто не найдены'}
           </p>
-          <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
+          <p className="text-[13px] text-[var(--ink-subtle)] mt-1">
             {vehicles.length === 0 ? 'Добавьте первый автомобиль, нажав кнопку выше' : 'Попробуйте изменить критерии поиска'}
           </p>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filteredVehicles.map((vehicle, index) => (
-            <VehicleCard
-              key={vehicle.id}
-              vehicle={vehicle}
-              index={index}
-              canEdit={canEditVehicles}
-              onView={() => setViewingVehicle(vehicle)}
-              onEdit={() => {
-                setEditingVehicle(vehicle)
-                setIsModalOpen(true)
-              }}
-              onDelete={() => handleDelete(vehicle.id)}
-              onOpenMetadata={() => setMetadataVehicle(vehicle)}
-            />
+      ) : view === 'grid' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 stagger-animation">
+          {displayedVehicles.map((vehicle, index) => (
+            <VehicleCard key={vehicle.id} vehicle={vehicle} index={index} canEdit={canEditVehicles} {...openVehicle(vehicle)} />
           ))}
+        </div>
+      ) : (
+        <div className="table-container fade-up">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Авто</th>
+                <th>Год</th>
+                <th className="hidden md:table-cell">Топливо</th>
+                <th className="hidden lg:table-cell">Пробег</th>
+                <th>Статус</th>
+                <th className="text-right">฿ / мес</th>
+                {canEditVehicles && <th className="w-px"></th>}
+              </tr>
+            </thead>
+            <tbody>
+              {displayedVehicles.map((vehicle) => (
+                <VehicleRow key={vehicle.id} vehicle={vehicle} canEdit={canEditVehicles} {...openVehicle(vehicle)} />
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
@@ -307,114 +389,142 @@ export default function VehiclesPage() {
   )
 }
 
+function StatCard({ label, value, tone, icon }: {
+  label: string; value: number; tone: 'neutral' | 'emerald' | 'amber' | 'rose'; icon: React.ReactNode
+}) {
+  return (
+    <div className="stat-card card-hover">
+      <span className={clsx('icon-soft w-9 h-9 mb-2.5', `icon-soft-${tone}`)}>{icon}</span>
+      <p className="eyebrow mb-1">{label}</p>
+      <p className="text-[26px] leading-none font-bold tracking-tight text-[var(--ink)]"><CountUp value={value} /></p>
+    </div>
+  )
+}
+
+function RateCell({ label, value, highlight }: { label: string; value: number; highlight?: boolean }) {
+  return (
+    <div className="rounded-xl bg-[var(--surface-2)] border border-[var(--border)] px-2.5 py-2 text-center">
+      <p className="text-[10px] uppercase tracking-wide text-[var(--ink-subtle)]">{label}</p>
+      <p className={clsx('text-[13px] font-bold mt-0.5 num-roll', highlight ? '' : 'text-[var(--ink)]')} style={highlight ? { color: 'var(--accent)' } : undefined}>
+        {value > 0 ? `฿${value.toLocaleString('ru-RU')}` : '—'}
+      </p>
+    </div>
+  )
+}
+
+function Specs({ vehicle }: { vehicle: Vehicle }) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12.5px] text-[var(--ink-muted)]">
+      <span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-[var(--ink-subtle)]" />{vehicle.year}</span>
+      <span className="flex items-center gap-1.5"><Fuel className="w-3.5 h-3.5 text-[var(--ink-subtle)]" />{fuelLabels[vehicle.fuelType] || vehicle.fuelType}</span>
+      {vehicle.mileage > 0 && <span className="flex items-center gap-1.5"><Gauge className="w-3.5 h-3.5 text-[var(--ink-subtle)]" />{vehicle.mileage.toLocaleString('ru-RU')} км</span>}
+      <span className="flex items-center gap-1.5">
+        <span className="w-3.5 h-3.5 rounded-full border border-[var(--border-strong)]" style={{ background: getColorHex(vehicle.color) }} />
+        {vehicle.color}
+      </span>
+    </div>
+  )
+}
+
 function VehicleCard({
-  vehicle,
-  index,
-  canEdit = true,
-  onView,
-  onEdit,
-  onDelete,
-  onOpenMetadata,
+  vehicle, canEdit = true, onView, onEdit, onDelete, onOpenMetadata,
 }: {
   vehicle: Vehicle
-  index: number
+  index?: number
   canEdit?: boolean
   onView: () => void
   onEdit: () => void
   onDelete: () => void
   onOpenMetadata: () => void
 }) {
+  const warn = docWarning(vehicle)
   return (
-    <div
-      onClick={onView}
-      className="p-5 animate-slide-up rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm cursor-pointer hover:border-gray-200 dark:hover:border-zinc-700 hover:shadow-md transition-all"
-      style={{ animationDelay: `${index * 50}ms` }}
-    >
+    <div onClick={onView} className="card card-hover p-5 cursor-pointer flex flex-col">
       {/* Header */}
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-gray-50 dark:bg-zinc-800 flex items-center justify-center">
-            <CarIcon className="w-6 h-6 text-gray-400 dark:text-gray-500" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-gray-900 dark:text-white">
-              {vehicle.brand} {vehicle.model}
-            </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">
-              {vehicle.licensePlate}
-            </p>
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="icon-soft icon-soft-neutral w-12 h-12"><Car className="w-6 h-6" /></span>
+          <div className="min-w-0">
+            <h3 className="font-semibold text-[var(--ink)] truncate">{vehicle.brand} {vehicle.model}</h3>
+            <p className="text-[12.5px] text-[var(--ink-muted)] font-mono">{vehicle.licensePlate}</p>
           </div>
         </div>
-        <span className={clsx('badge', statusColors[vehicle.status])}>
-          {statusLabels[vehicle.status]}
-        </span>
+        <span className={clsx('pill', statusPill[vehicle.status])}>{statusLabels[vehicle.status]}</span>
       </div>
 
-      {/* Details */}
-      <div className="grid grid-cols-2 gap-3 text-sm mb-4">
-        <div className="flex items-center gap-2">
-          <CalendarIcon className="w-4 h-4 text-gray-400" />
-          <span className="text-gray-600 dark:text-gray-400">{vehicle.year}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div
-            className="w-4 h-4 rounded-full border-2 border-gray-200 dark:border-zinc-700"
-            style={{ backgroundColor: getColorHex(vehicle.color) }}
-          />
-          <span className="text-gray-600 dark:text-gray-400">{vehicle.color}</span>
-        </div>
-      </div>
+      {/* Specs */}
+      <div className="mb-3"><Specs vehicle={vehicle} /></div>
 
-      {/* Prices */}
+      {/* Doc warning */}
+      {warn && (
+        <div className={clsx('mb-3 inline-flex w-fit items-center gap-1.5 pill', warn.expired ? 'pill-danger' : 'pill-warning')}>
+          <ShieldAlert className="w-3 h-3" />{warn.label}
+        </div>
+      )}
+
+      {/* Rates */}
       {vehicle.rateMonthly > 0 && (
-        <div className="p-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 mb-4">
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
-            {vehicle.rateDaily > 0 && (
-              <div>
-                <span className="text-gray-400 dark:text-gray-500">1 день</span>
-                <span className="ml-1 font-semibold text-gray-900 dark:text-white">฿{vehicle.rateDaily.toLocaleString()}</span>
-              </div>
-            )}
-            {vehicle.rate7days > 0 && (
-              <div>
-                <span className="text-gray-400 dark:text-gray-500">7 дней</span>
-                <span className="ml-1 font-semibold text-gray-900 dark:text-white">฿{vehicle.rate7days.toLocaleString()}</span>
-              </div>
-            )}
-            <div>
-              <span className="text-gray-400 dark:text-gray-500">Месяц</span>
-              <span className="ml-1 font-semibold text-gray-900 dark:text-white">฿{vehicle.rateMonthly.toLocaleString()}</span>
-            </div>
-          </div>
+        <div className="grid grid-cols-3 gap-2 mb-4 mt-auto">
+          <RateCell label="День" value={vehicle.rateDaily} />
+          <RateCell label="7 дней" value={vehicle.rate7days} />
+          <RateCell label="Месяц" value={vehicle.rateMonthly} highlight />
         </div>
       )}
 
       {/* Actions */}
       {canEdit && (
-        <div className="flex gap-2 pt-2 border-t border-gray-100 dark:border-zinc-800">
-          <button
-            onClick={(e) => { e.stopPropagation(); onEdit() }}
-            className="flex-1 btn btn-secondary text-sm py-2"
-          >
-            <EditIcon className="w-4 h-4 mr-1.5" />
-            Изменить
+        <div className="flex gap-2 pt-3 border-t border-[var(--border)]" onClick={(e) => e.stopPropagation()}>
+          <button onClick={onEdit} className="btn-secondary flex-1 !py-2 text-[13px]">
+            <SquarePen className="w-4 h-4" /> Изменить
           </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onOpenMetadata() }}
-            className="btn btn-ghost text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-500/10 px-3"
-            title="Настройки для сайта"
-          >
-            <GlobeIcon className="w-4 h-4" />
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onDelete() }}
-            className="btn btn-ghost text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 px-3"
-          >
-            <TrashIcon className="w-4 h-4" />
-          </button>
+          <button onClick={onOpenMetadata} className="btn-icon" title="Настройки для сайта"><Globe className="w-4 h-4" /></button>
+          <button onClick={onDelete} className="btn-icon hover:!text-red-600 hover:!border-red-200" title="В архив"><Trash2 className="w-4 h-4" /></button>
         </div>
       )}
     </div>
+  )
+}
+
+function VehicleRow({
+  vehicle, canEdit = true, onView, onEdit, onDelete, onOpenMetadata,
+}: {
+  vehicle: Vehicle
+  canEdit?: boolean
+  onView: () => void
+  onEdit: () => void
+  onDelete: () => void
+  onOpenMetadata: () => void
+}) {
+  const warn = docWarning(vehicle)
+  return (
+    <tr onClick={onView} className="cursor-pointer">
+      <td>
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="icon-soft icon-soft-neutral w-9 h-9"><Car className="w-[18px] h-[18px]" /></span>
+          <div className="min-w-0">
+            <p className="font-medium text-[var(--ink)] truncate flex items-center gap-1.5">
+              {vehicle.brand} {vehicle.model}
+              {warn && <ShieldAlert className={clsx('w-3.5 h-3.5 shrink-0', warn.expired ? 'text-red-500' : 'text-amber-500')} />}
+            </p>
+            <p className="text-[11px] font-mono text-[var(--ink-subtle)]">{vehicle.licensePlate}</p>
+          </div>
+        </div>
+      </td>
+      <td className="text-[var(--ink-muted)]">{vehicle.year}</td>
+      <td className="hidden md:table-cell text-[var(--ink-muted)]">{fuelLabels[vehicle.fuelType] || vehicle.fuelType}</td>
+      <td className="hidden lg:table-cell text-[var(--ink-muted)]">{vehicle.mileage > 0 ? `${vehicle.mileage.toLocaleString('ru-RU')} км` : '—'}</td>
+      <td><span className={clsx('pill', statusPill[vehicle.status])}>{statusLabels[vehicle.status]}</span></td>
+      <td className="text-right font-semibold text-[var(--ink)] num-roll">{vehicle.rateMonthly > 0 ? `฿${vehicle.rateMonthly.toLocaleString('ru-RU')}` : '—'}</td>
+      {canEdit && (
+        <td>
+          <div className="flex items-center gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
+            <button onClick={onEdit} className="btn-icon !w-8 !h-8" title="Изменить"><SquarePen className="w-4 h-4" /></button>
+            <button onClick={onOpenMetadata} className="btn-icon !w-8 !h-8" title="Настройки для сайта"><Globe className="w-4 h-4" /></button>
+            <button onClick={onDelete} className="btn-icon !w-8 !h-8 hover:!text-red-600 hover:!border-red-200" title="В архив"><Trash2 className="w-4 h-4" /></button>
+          </div>
+        </td>
+      )}
+    </tr>
   )
 }
 
@@ -957,131 +1067,16 @@ function VehicleDetailModal({
   )
 }
 
-function HistoryIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  )
-}
-
-function UserIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-    </svg>
-  )
-}
-
-function InfoIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  )
-}
-
-function GaugeIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-    </svg>
-  )
-}
-
-function CurrencyIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  )
-}
-
-// Icons
-function PlusIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-    </svg>
-  )
-}
-
-function CarIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
-    </svg>
-  )
-}
-
-function SearchIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-    </svg>
-  )
-}
-
-function CheckIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-    </svg>
-  )
-}
-
-function KeyIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
-    </svg>
-  )
-}
-
-function WrenchIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437l1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008z" />
-    </svg>
-  )
-}
-
-function CalendarIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-    </svg>
-  )
-}
-
-function EditIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-    </svg>
-  )
-}
-
-function TrashIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-    </svg>
-  )
-}
-
-function CloseIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-    </svg>
-  )
-}
-
-function GlobeIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
-    </svg>
-  )
-}
+/* ===================== Icons (lucide) ===================== */
+function HistoryIcon({ className }: { className?: string }) { return <History className={className} /> }
+function UserIcon({ className }: { className?: string }) { return <User className={className} /> }
+function InfoIcon({ className }: { className?: string }) { return <Info className={className} /> }
+function GaugeIcon({ className }: { className?: string }) { return <Gauge className={className} /> }
+function CurrencyIcon({ className }: { className?: string }) { return <Banknote className={className} /> }
+function PlusIcon({ className }: { className?: string }) { return <Plus className={className} /> }
+function CarIcon({ className }: { className?: string }) { return <Car className={className} /> }
+function SearchIcon({ className }: { className?: string }) { return <Search className={className} /> }
+function CheckIcon({ className }: { className?: string }) { return <CheckCircle2 className={className} /> }
+function CalendarIcon({ className }: { className?: string }) { return <Calendar className={className} /> }
+function EditIcon({ className }: { className?: string }) { return <SquarePen className={className} /> }
+function CloseIcon({ className }: { className?: string }) { return <X className={className} /> }

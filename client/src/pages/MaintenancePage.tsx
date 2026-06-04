@@ -3,6 +3,11 @@ import type { Maintenance, Vehicle, MaintenanceFormData, MaintenanceType } from 
 import clsx from 'clsx'
 import SelectDropdown from '@/components/ui/SelectDropdown'
 import DatePicker from '@/components/ui/DatePicker'
+import { CountUp } from '@/components/ui/CountUp'
+import {
+  Plus, Wrench, X, Car, Calendar, Banknote, Check, Settings, Disc,
+  Droplets, MoreHorizontal, MapPin, Gauge, ChevronDown, Search, Trash2,
+} from 'lucide-react'
 
 // Custom Select Component
 interface SelectOption {
@@ -185,6 +190,18 @@ const typeColors: Record<MaintenanceType, string> = {
   other: 'badge-gray',
 }
 
+function MaintStat({ label, value, format, tone, icon }: {
+  label: string; value: number; format?: (n: number) => string; tone: 'neutral' | 'amber' | 'rose'; icon: React.ReactNode
+}) {
+  return (
+    <div className="stat-card card-hover">
+      <span className={clsx('icon-soft w-9 h-9 mb-2.5', `icon-soft-${tone}`)}>{icon}</span>
+      <p className="eyebrow mb-1">{label}</p>
+      <p className="text-[22px] sm:text-[24px] leading-none font-bold tracking-tight text-[var(--ink)]"><CountUp value={value} format={format} /></p>
+    </div>
+  )
+}
+
 export default function MaintenancePage() {
   const [records, setRecords] = useState<Maintenance[]>([])
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
@@ -313,115 +330,59 @@ export default function MaintenancePage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <div className="relative">
-          <div className="w-12 h-12 rounded-full border-[3px] border-gray-200 dark:border-zinc-700" />
-          <div className="absolute inset-0 w-12 h-12 rounded-full border-[3px] border-transparent border-t-gray-900 dark:border-t-white animate-spin" />
+      <div className="flex flex-col gap-6 max-w-7xl mx-auto">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[...Array(4)].map((_, i) => <div key={i} className="h-[112px] rounded-[18px] skeleton" />)}
         </div>
+        <div className="space-y-3">{[...Array(5)].map((_, i) => <div key={i} className="h-[90px] rounded-2xl skeleton" />)}</div>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col gap-8 max-w-7xl mx-auto">
+    <div className="flex flex-col gap-6 max-w-7xl mx-auto">
       {/* Header */}
-      <header className="animate-slide-up">
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Техника</p>
-            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white tracking-tight">
-              Обслуживание
-            </h1>
-          </div>
-          <button
-            onClick={() => {
-              setEditingMaintenance(null)
-              setIsModalOpen(true)
-            }}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-semibold hover:bg-gray-800 dark:hover:bg-gray-100 transition-all active:scale-[0.98] shadow-lg shadow-gray-900/10 dark:shadow-white/10"
-          >
-            <PlusIcon className="w-4 h-4" />
-            Добавить запись
-          </button>
+      <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 fade-up">
+        <div>
+          <p className="eyebrow mb-1.5">Техника</p>
+          <h1 className="text-[28px] sm:text-[32px] font-bold tracking-tight text-[var(--ink)] leading-none">Обслуживание</h1>
         </div>
+        <button onClick={() => { setEditingMaintenance(null); setIsModalOpen(true) }} className="btn-primary">
+          <PlusIcon className="w-4 h-4" />
+          Добавить запись
+        </button>
       </header>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '0ms' }}>
-          <div className="absolute inset-0 bg-gradient-to-br from-gray-50/50 to-transparent dark:from-zinc-800/20 dark:to-transparent pointer-events-none" />
-          <div className="relative">
-            <span className="text-gray-400 dark:text-gray-500 mb-4 block"><WrenchIcon className="w-5 h-5" /></span>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{stats.total}</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Всего записей</p>
-          </div>
-        </div>
-        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '50ms' }}>
-          <div className="absolute inset-0 bg-gradient-to-br from-purple-50/50 to-transparent dark:from-purple-900/10 dark:to-transparent pointer-events-none" />
-          <div className="relative">
-            <span className="text-purple-500 dark:text-purple-400 mb-4 block"><CurrencyIcon className="w-5 h-5" /></span>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">{formatCurrency(stats.totalCost)}</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Всего расходов</p>
-          </div>
-        </div>
-        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-gray-200/60 dark:border-zinc-800 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '100ms' }}>
-          <div className="absolute inset-0 bg-gradient-to-br from-gray-50/50 to-transparent dark:from-zinc-800/10 dark:to-transparent pointer-events-none" />
-          <div className="relative">
-            <span className="text-gray-500 dark:text-gray-400 mb-4 block"><CalendarIcon className="w-5 h-5" /></span>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{stats.thisMonth}</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">В этом месяце</p>
-          </div>
-        </div>
-        <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-zinc-900/80 border border-orange-200/60 dark:border-orange-900/30 p-6 animate-slide-up backdrop-blur-xl" style={{ animationDelay: '150ms' }}>
-          <div className="absolute inset-0 bg-gradient-to-br from-orange-50/50 to-transparent dark:from-orange-900/10 dark:to-transparent pointer-events-none" />
-          <div className="relative">
-            <span className="text-orange-500 dark:text-orange-400 mb-4 block"><ToolIcon className="w-5 h-5" /></span>
-            <p className="text-3xl font-bold text-orange-600 dark:text-orange-400 tracking-tight">{stats.inMaintenance}</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Сейчас на ТО</p>
-          </div>
-        </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 stagger-animation">
+        <MaintStat label="Всего записей" value={stats.total} tone="neutral" icon={<WrenchIcon className="w-[18px] h-[18px]" />} />
+        <MaintStat label="Всего расходов" value={stats.totalCost} format={formatCurrency} tone="amber" icon={<CurrencyIcon className="w-[18px] h-[18px]" />} />
+        <MaintStat label="В этом месяце" value={stats.thisMonth} tone="neutral" icon={<CalendarIcon className="w-[18px] h-[18px]" />} />
+        <MaintStat label="Сейчас на ТО" value={stats.inMaintenance} tone="rose" icon={<ToolIcon className="w-[18px] h-[18px]" />} />
       </div>
 
       {/* Vehicles in maintenance section */}
       {vehiclesInMaintenance.length > 0 && (
-        <div className="animate-slide-up" style={{ animationDelay: '200ms' }}>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-            <ToolIcon className="w-5 h-5 text-amber-500" />
+        <div className="fade-up">
+          <h2 className="text-[14px] font-semibold text-[var(--ink-2)] mb-3 flex items-center gap-2.5">
+            <span className="icon-soft icon-soft-amber w-8 h-8"><ToolIcon className="w-[17px] h-[17px]" /></span>
             Машины на ТО
-            <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
-              {vehiclesInMaintenance.length}
-            </span>
+            <span className="pill pill-warning">{vehiclesInMaintenance.length}</span>
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {vehiclesInMaintenance.map((vehicle, index) => (
-              <div
-                key={vehicle.id}
-                className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/50 animate-slide-up"
-                style={{ animationDelay: `${250 + index * 50}ms` }}
-              >
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 stagger-animation">
+            {vehiclesInMaintenance.map((vehicle) => (
+              <div key={vehicle.id} className="card card-hover stripe-l p-4" style={{ ['--stripe' as string]: '#f59e0b' }}>
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
-                    <CarIcon className="w-6 h-6 text-amber-600 dark:text-amber-400" />
-                  </div>
+                  <span className="icon-soft icon-soft-amber w-11 h-11"><CarIcon className="w-[22px] h-[22px]" /></span>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-gray-900 dark:text-white truncate">
-                      {vehicle.brand} {vehicle.model}
-                    </h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">{vehicle.licensePlate}</p>
+                    <h3 className="font-semibold text-[var(--ink)] truncate">{vehicle.brand} {vehicle.model}</h3>
+                    <p className="text-[12.5px] font-mono text-[var(--ink-subtle)]">{vehicle.licensePlate}</p>
                   </div>
-                  <span className="badge badge-warning">На ТО</span>
+                  <span className="pill pill-warning">На ТО</span>
                 </div>
-                {vehicle.notes && (
-                  <p className="mt-3 text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
-                    {vehicle.notes}
-                  </p>
-                )}
-                <button
-                  onClick={() => handleUpdateVehicleStatus(vehicle.id, 'available')}
-                  className="mt-3 w-full py-2 px-3 rounded-xl text-sm font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors flex items-center justify-center gap-2"
-                >
-                  <CheckIcon className="w-4 h-4" />
-                  Снять с ТО
+                {vehicle.notes && <p className="mt-3 text-[13px] text-[var(--ink-muted)] line-clamp-2">{vehicle.notes}</p>}
+                <button onClick={() => handleUpdateVehicleStatus(vehicle.id, 'available')} className="btn-secondary w-full !py-2 mt-3 text-[13px]">
+                  <CheckIcon className="w-4 h-4" /> Снять с ТО
                 </button>
               </div>
             ))}
@@ -430,7 +391,7 @@ export default function MaintenancePage() {
       )}
 
       {/* Filter */}
-      <div className="animate-slide-up w-full sm:w-72" style={{ animationDelay: '150ms' }}>
+      <div className="fade-up w-full sm:w-72">
         <SelectDropdown
           value={vehicleFilter === 'all' ? 'all' : vehicleFilter.toString()}
           onChange={(value) => setVehicleFilter(value === 'all' ? 'all' : parseInt(value))}
@@ -447,74 +408,50 @@ export default function MaintenancePage() {
 
       {/* Records list */}
       {filteredRecords.length === 0 ? (
-        <div className="p-12 text-center animate-slide-up rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm" style={{ animationDelay: '200ms' }}>
-          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-50 dark:bg-zinc-800 flex items-center justify-center">
-            <WrenchIcon className="w-8 h-8 text-gray-400" />
-          </div>
-          <p className="text-gray-500 dark:text-gray-400 font-medium">
-            Записей пока нет
-          </p>
-          <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
-            Добавьте первую запись о техобслуживании
-          </p>
+        <div className="card p-12 text-center fade-up">
+          <span className="icon-soft icon-soft-neutral w-16 h-16 mx-auto mb-4 breathe"><WrenchIcon className="w-8 h-8" /></span>
+          <p className="text-[var(--ink-2)] font-medium">Записей пока нет</p>
+          <p className="text-[13px] text-[var(--ink-subtle)] mt-1">Добавьте первую запись о техобслуживании</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {filteredRecords.map((record, index) => (
+        <div className="space-y-3 stagger-animation">
+          {filteredRecords.map((record) => (
             <div
               key={record.id}
               onClick={() => handleCardClick(record)}
-              className="p-5 animate-slide-up rounded-2xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-sm cursor-pointer hover:border-gray-300 dark:hover:border-zinc-600 hover:shadow-md transition-all"
-              style={{ animationDelay: `${200 + index * 50}ms` }}
+              className="card card-hover p-5 cursor-pointer"
             >
               <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                 {/* Left side - info */}
-                <div className="flex items-start gap-4 flex-1">
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 bg-gray-50 dark:bg-zinc-800">
-                    {record.type === 'scheduled' && <GearIcon className="w-6 h-6 text-gray-400" />}
-                    {record.type === 'repair' && <WrenchIcon className="w-6 h-6 text-gray-400" />}
-                    {record.type === 'tire' && <TireIcon className="w-6 h-6 text-gray-400" />}
-                    {record.type === 'wash' && <WashIcon className="w-6 h-6 text-gray-400" />}
-                    {record.type === 'other' && <DotsIcon className="w-6 h-6 text-gray-400" />}
-                  </div>
+                <div className="flex items-start gap-3 flex-1 min-w-0">
+                  <span className="icon-soft icon-soft-neutral w-12 h-12">
+                    {record.type === 'scheduled' && <GearIcon className="w-6 h-6" />}
+                    {record.type === 'repair' && <WrenchIcon className="w-6 h-6" />}
+                    {record.type === 'tire' && <TireIcon className="w-6 h-6" />}
+                    {record.type === 'wash' && <WashIcon className="w-6 h-6" />}
+                    {record.type === 'other' && <DotsIcon className="w-6 h-6" />}
+                  </span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className={clsx('badge', typeColors[record.type])}>
-                        {typeLabels[record.type]}
-                      </span>
-                      <span className="text-xs text-gray-400 dark:text-gray-500">
-                        {formatDate(record.date)}
-                      </span>
+                      <span className={clsx('badge', typeColors[record.type])}>{typeLabels[record.type]}</span>
+                      <span className="text-[11.5px] text-[var(--ink-subtle)]">{formatDate(record.date)}</span>
                     </div>
-                    <h3 className="font-semibold text-gray-900 dark:text-white">
+                    <h3 className="font-semibold text-[var(--ink)]">
                       {record.vehicle?.brand} {record.vehicle?.model}
-                      <span className="text-sm font-normal text-gray-500 ml-2">
-                        {record.vehicle?.licensePlate}
-                      </span>
+                      <span className="text-[13px] font-mono font-normal text-[var(--ink-subtle)] ml-2">{record.vehicle?.licensePlate}</span>
                     </h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
-                      {record.description}
-                    </p>
-                    <div className="flex items-center gap-4 mt-2 text-xs text-gray-400">
-                      <span className="flex items-center gap-1">
-                        <LocationIcon className="w-3.5 h-3.5" />
-                        {record.location}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <SpeedometerIcon className="w-3.5 h-3.5" />
-                        {record.mileage.toLocaleString()} км
-                      </span>
+                    <p className="text-[13px] text-[var(--ink-muted)] mt-1 line-clamp-2">{record.description}</p>
+                    <div className="flex items-center gap-4 mt-2 text-[11.5px] text-[var(--ink-subtle)]">
+                      <span className="flex items-center gap-1"><LocationIcon className="w-3.5 h-3.5" />{record.location}</span>
+                      <span className="flex items-center gap-1"><SpeedometerIcon className="w-3.5 h-3.5" />{record.mileage.toLocaleString('ru-RU')} км</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Right side - cost */}
-                <div className="flex items-center gap-3 sm:flex-col sm:items-end">
-                  <div className="p-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700">
-                    <p className="text-lg font-bold text-gray-900 dark:text-white">
-                      {formatCurrency(record.cost)}
-                    </p>
-                  </div>
+                <div className="rounded-xl bg-[var(--surface-2)] border border-[var(--border)] px-4 py-2.5 self-start sm:self-center">
+                  <p className="text-[10px] uppercase tracking-wide text-[var(--ink-subtle)]">Стоимость</p>
+                  <p className="text-[17px] font-bold text-[var(--ink)] num-roll">{formatCurrency(record.cost)}</p>
                 </div>
               </div>
             </div>
@@ -767,152 +704,22 @@ function MaintenanceModal({
   )
 }
 
-function PlusIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-    </svg>
-  )
-}
-
-function WrenchIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-    </svg>
-  )
-}
-
-function CloseIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-    </svg>
-  )
-}
-
-function CarIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
-    </svg>
-  )
-}
-
-function CalendarIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-    </svg>
-  )
-}
-
-function CurrencyIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  )
-}
-
-function CheckIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-    </svg>
-  )
-}
-
-function GearIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-    </svg>
-  )
-}
-
-function TireIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <circle cx="12" cy="12" r="9" />
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8" />
-    </svg>
-  )
-}
-
-function WashIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l.8 4.2m-.8-4.2l-4.2.8M5 14.5l-.8 4.2m.8-4.2l4.2.8m5.8-1.8v1.5m0 0V18m0-3v-1.5m0 4.5H12m0 0h3m-3 0v-1.5" />
-    </svg>
-  )
-}
-
-function DotsIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM18.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
-    </svg>
-  )
-}
-
-function LocationIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
-    </svg>
-  )
-}
-
-function SpeedometerIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2" />
-      <circle cx="12" cy="12" r="9" />
-    </svg>
-  )
-}
-
-function ChevronDownIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-    </svg>
-  )
-}
-
-function SearchIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-    </svg>
-  )
-}
-
-function CheckSmallIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-    </svg>
-  )
-}
-
-function ToolIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437l1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008z" />
-    </svg>
-  )
-}
-
-function TrashIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-    </svg>
-  )
-}
+/* ===================== Icons (lucide) ===================== */
+function PlusIcon({ className }: { className?: string }) { return <Plus className={className} /> }
+function WrenchIcon({ className }: { className?: string }) { return <Wrench className={className} /> }
+function CloseIcon({ className }: { className?: string }) { return <X className={className} /> }
+function CarIcon({ className }: { className?: string }) { return <Car className={className} /> }
+function CalendarIcon({ className }: { className?: string }) { return <Calendar className={className} /> }
+function CurrencyIcon({ className }: { className?: string }) { return <Banknote className={className} /> }
+function CheckIcon({ className }: { className?: string }) { return <Check className={className} /> }
+function GearIcon({ className }: { className?: string }) { return <Settings className={className} /> }
+function TireIcon({ className }: { className?: string }) { return <Disc className={className} /> }
+function WashIcon({ className }: { className?: string }) { return <Droplets className={className} /> }
+function DotsIcon({ className }: { className?: string }) { return <MoreHorizontal className={className} /> }
+function LocationIcon({ className }: { className?: string }) { return <MapPin className={className} /> }
+function SpeedometerIcon({ className }: { className?: string }) { return <Gauge className={className} /> }
+function ChevronDownIcon({ className }: { className?: string }) { return <ChevronDown className={className} /> }
+function SearchIcon({ className }: { className?: string }) { return <Search className={className} /> }
+function CheckSmallIcon({ className }: { className?: string }) { return <Check className={className} /> }
+function ToolIcon({ className }: { className?: string }) { return <Wrench className={className} /> }
+function TrashIcon({ className }: { className?: string }) { return <Trash2 className={className} /> }
