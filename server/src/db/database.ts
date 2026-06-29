@@ -20,7 +20,12 @@ if (!connectionString) {
 
 export const pool = new Pool({
   connectionString,
-  ssl: { rejectUnauthorized: false },
+  // Disable SSL for local databases (e.g. local Docker Postgres). Railway/managed
+  // Postgres still gets SSL. Set DATABASE_SSL=false to force-disable.
+  ssl:
+    process.env.DATABASE_SSL === 'false'
+      ? false
+      : { rejectUnauthorized: false },
 })
 
 const schema = `
