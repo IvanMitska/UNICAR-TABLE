@@ -3,10 +3,23 @@ import { pool } from '../db/database.js'
 import {
   generateReferenceCode,
   isVehicleAvailableForDates,
+  toPublicCar,
   BookingRequestInput
 } from '../utils/transformers.js'
 
 const router = Router()
+
+/** Columns needed to build a public catalogue entry. */
+const CAR_COLUMNS = `
+  v.id, v.brand, v.model, v.year, v.color, v.fuel_type, v.status,
+  v.rate_daily, v.license_plate,
+  m.website_id, m.category, m.images, m.features, m.specifications,
+  m.seats, m.luggage, m.rating, m.reviews, m.description, m.transmission,
+  m.price_by_request, m.long_term_only
+`
+
+/** Only cars the CRM marked as visible and not archived reach the website. */
+const VISIBLE_CARS_WHERE = `v.status != 'archived' AND m.is_visible = true`
 
 /**
  * GET /api/public/debug
@@ -52,6 +65,136 @@ router.get('/debug', async (_req: Request, res: Response) => {
     res.status(500).json({ error: 'Database error', details: String(error) })
   }
 })
+
+/**
+ * GET /api/public/cars
+ * Public catalogue: every visible, non-archived vehicle.
+ */
+router.get('/cars', async (_req: Request, res: Response) => {
+  try {
+    const result = await pool.query(`
+      SELECT ${CAR_COLUMNS}
+      FROM vehicles v
+      JOIN vehicle_metadata m ON v.id = m.vehicle_id
+      WHERE ${VISIBLE_CARS_WHERE}
+      ORDER BY m.display_order, v.id
+    `)
+
+    res.json(result.rows.map(toPublicCar))
+  } catch (error) {
+    console.error('Error fetching cars:', error)
+    res.status(500).json({ error: 'Failed to fetch cars' })
+  }
+})
+
+/**
+ * GET /api/public/cars/available?startDate=&endDate=
+ * Catalogue filtered down to cars free for the given range.
+ * Declared before /cars/:id so that "available" is not read as an id.
+ */
+router.get('/cars/available', async (req: Request, res: Response) => {
+  try {
+    const { startDate, endDate } = req.query
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: 'Both "startDate" and "endDate" are required' })
+    }
+
+    const from = new Date(startDate as string)
+    const to = new Date(endDate as string)
+
+    if (isNaN(from.getTime()) || isNaN(to.getTime())) {
+      return res.status(400).json({ error: 'Invalid date format. Use YYYY-MM-DD' })
+    }
+
+    if (from >= to) {
+      return res.status(400).json({ error: '"startDate" must be before "endDate"' })
+    }
+
+    const carsResult = await pool.query(`
+      SELECT ${CAR_COLUMNS}
+      FROM vehicles v
+      JOIN vehicle_metadata m ON v.id = m.vehicle_id
+      WHERE ${VISIBLE_CARS_WHERE}
+      ORDER BY m.display_order, v.id
+    `)
+
+    const occupied = await getOccupiedRanges()
+
+    const cars = carsResult.rows
+      .filter(row => isVehicleAvailableForDates(row.status, occupied[row.id] || [], from, to))
+      .map(toPublicCar)
+
+    res.json(cars)
+  } catch (error) {
+    console.error('Error fetching available cars:', error)
+    res.status(500).json({ error: 'Failed to fetch available cars' })
+  }
+})
+
+/**
+ * GET /api/public/cars/:id
+ * Single car by websiteId or numeric vehicle id.
+ */
+router.get('/cars/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params
+
+    const result = await pool.query(`
+      SELECT ${CAR_COLUMNS}
+      FROM vehicles v
+      JOIN vehicle_metadata m ON v.id = m.vehicle_id
+      WHERE (m.website_id = $1 OR v.id::text = $1) AND ${VISIBLE_CARS_WHERE}
+      LIMIT 1
+    `, [id])
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Car not found' })
+    }
+
+    res.json(toPublicCar(result.rows[0]))
+  } catch (error) {
+    console.error('Error fetching car:', error)
+    res.status(500).json({ error: 'Failed to fetch car' })
+  }
+})
+
+/**
+ * Active rentals and open booking requests, grouped by vehicle id.
+ * Both block a car for their date range.
+ */
+async function getOccupiedRanges(): Promise<Record<number, Array<{ start_date: string; planned_end_date: string }>>> {
+  const [rentals, bookings] = await Promise.all([
+    pool.query(`
+      SELECT vehicle_id, start_date, planned_end_date
+      FROM rentals
+      WHERE status = 'active'
+    `),
+    pool.query(`
+      SELECT vehicle_id, start_date, end_date
+      FROM booking_requests
+      WHERE status IN ('pending', 'confirmed')
+    `)
+  ])
+
+  const byVehicle: Record<number, Array<{ start_date: string; planned_end_date: string }>> = {}
+
+  for (const rental of rentals.rows) {
+    ;(byVehicle[rental.vehicle_id] ||= []).push({
+      start_date: rental.start_date,
+      planned_end_date: rental.planned_end_date
+    })
+  }
+
+  for (const booking of bookings.rows) {
+    ;(byVehicle[booking.vehicle_id] ||= []).push({
+      start_date: booking.start_date,
+      planned_end_date: booking.end_date
+    })
+  }
+
+  return byVehicle
+}
 
 /**
  * Simple availability response
@@ -361,6 +504,51 @@ router.post('/bookings', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error creating booking:', error)
     res.status(500).json({ error: 'Failed to create booking' })
+  }
+})
+
+/**
+ * POST /api/public/bookings/:ref/cancel
+ * Lets the customer withdraw a request that has not been confirmed yet.
+ * Confirmed rentals stay with the manager — the app says so explicitly.
+ */
+router.post('/bookings/:ref/cancel', async (req: Request, res: Response) => {
+  try {
+    const { ref } = req.params
+
+    const existing = await pool.query(
+      'SELECT id, status FROM booking_requests WHERE reference_code = $1',
+      [ref]
+    )
+
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: 'Booking not found' })
+    }
+
+    const { status } = existing.rows[0]
+
+    if (status === 'cancelled') {
+      return res.json({ referenceCode: ref, status: 'cancelled' })
+    }
+
+    if (status !== 'pending') {
+      return res.status(409).json({ error: `Booking with status "${status}" cannot be cancelled` })
+    }
+
+    const updated = await pool.query(`
+      UPDATE booking_requests
+      SET status = 'cancelled', updated_at = NOW()
+      WHERE reference_code = $1
+      RETURNING reference_code, status
+    `, [ref])
+
+    res.json({
+      referenceCode: updated.rows[0].reference_code,
+      status: updated.rows[0].status
+    })
+  } catch (error) {
+    console.error('Error cancelling booking:', error)
+    res.status(500).json({ error: 'Failed to cancel booking' })
   }
 })
 

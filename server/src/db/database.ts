@@ -321,7 +321,9 @@ async function updateVehicleCategories(client: pg.PoolClient) {
 export function toCamelCase<T>(obj: Record<string, unknown> | object): T {
   const result: Record<string, unknown> = {}
   for (const key in obj) {
-    const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase())
+    // Note: also handle digits after an underscore (e.g. rate_3days -> rate3days)
+    // so DB columns like rate_3days / rate_7days map to the client field names.
+    const camelKey = key.replace(/_([a-z0-9])/g, (_, ch) => ch.toUpperCase())
     result[camelKey] = (obj as Record<string, unknown>)[key]
   }
   return result as T

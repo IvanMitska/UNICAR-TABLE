@@ -9,6 +9,7 @@ const statusLabels: Record<BookingRequestStatus, string> = {
   confirmed: 'Подтверждено',
   rejected: 'Отклонено',
   completed: 'Завершено',
+  cancelled: 'Отменена клиентом',
 }
 
 const statusColors: Record<BookingRequestStatus, string> = {
@@ -16,6 +17,7 @@ const statusColors: Record<BookingRequestStatus, string> = {
   confirmed: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
   rejected: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
   completed: 'bg-gray-100 text-gray-800 dark:bg-zinc-700/30 dark:text-gray-400',
+  cancelled: 'bg-gray-100 text-gray-600 dark:bg-zinc-700/30 dark:text-gray-400',
 }
 
 // Icons
@@ -271,7 +273,7 @@ export default function BookingRequestsPage() {
 
       {/* Filters */}
       <div className="flex gap-2 flex-wrap">
-        {(['all', 'pending', 'confirmed', 'rejected', 'completed'] as const).map((status) => (
+        {(['all', 'pending', 'confirmed', 'rejected', 'completed', 'cancelled'] as const).map((status) => (
           <button
             key={status}
             onClick={() => setFilterStatus(status)}

@@ -184,7 +184,7 @@ export interface ExpenseFormData {
 }
 
 // Booking Request types (from website)
-export type BookingRequestStatus = 'pending' | 'confirmed' | 'rejected' | 'completed'
+export type BookingRequestStatus = 'pending' | 'confirmed' | 'rejected' | 'completed' | 'cancelled'
 
 export interface BookingRequest {
   id: number
